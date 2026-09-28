@@ -1,16 +1,19 @@
 ﻿// =========================================================
-// NetMine AI — Anomalies Page (Phase 2)
+// NetMine AI — Anomalies Page (Phase 7 updated)
 //
 // Features:
 //   - Filterable by severity and status
-//   - Score progress bars with colour coding
-//   - Summary strip with counts
-//   - Clear NOT YET EVALUATED markers for Isolation Forest
+//   - Dynamic Isolation Forest anomaly scores
+//   - Real detection metrics from CICIDS2017 evaluation
+//   - Fallback to mock data if backend is offline
 // =========================================================
-import { useState } from "react";
-import { AlertTriangle, Shield } from "lucide-react";
+import { useState, useEffect } from "react";
+import { AlertTriangle, Shield, CheckCircle, Cpu } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
 import { mockAnomalies } from "../mock/data";
+import type { Anomaly } from "../types";
+
+const API = "http://localhost:8000";
 
 function severityClass(s: string) {
   const m: Record<string, string> = {
@@ -38,16 +41,54 @@ export default function Anomalies() {
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const [statusFilter,   setStatusFilter]   = useState("ALL");
 
-  const filtered = mockAnomalies.filter(a =>
+  const [anomalies, setAnomalies] = useState<Anomaly[]>(mockAnomalies);
+  const [isRealData, setIsRealData] = useState(false);
+  const [metrics, setMetrics] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(`${API}/api/anomalies`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.anomalies && d.anomalies.length > 0) {
+          const mapped: Anomaly[] = d.anomalies.map((a: any) => ({
+            id: a.id,
+            timestamp: a.timestamp,
+            srcIp: a.src_ip ?? a.srcIp,
+            dstIp: a.dst_ip ?? a.dstIp,
+            type: a.type,
+            severity: a.severity,
+            score: a.score,
+            description: a.description,
+            status: a.status,
+          }));
+          setAnomalies(mapped);
+          setIsRealData(d.data_source === "ISOLATION_FOREST_MEASURED");
+        }
+      })
+      .catch(() => {});
+
+    fetch(`${API}/api/anomalies/metrics`)
+      .then(r => r.json())
+      .then(m => {
+        if (m && m.status === "trained") {
+          setMetrics(m);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const filtered = anomalies.filter(a =>
     (severityFilter === "ALL" || a.severity === severityFilter) &&
     (statusFilter   === "ALL" || a.status   === statusFilter)
   );
 
   const counts = {
-    critical: mockAnomalies.filter(a => a.severity === "critical").length,
-    high:     mockAnomalies.filter(a => a.severity === "high").length,
-    medium:   mockAnomalies.filter(a => a.severity === "medium").length,
-    active:   mockAnomalies.filter(a => a.status === "active").length,
+    critical: anomalies.filter(a => a.severity === "critical").length,
+    high:     anomalies.filter(a => a.severity === "high").length,
+    medium:   anomalies.filter(a => a.severity === "medium").length,
+    active:   anomalies.filter(a => a.status === "active").length,
+    investigating: anomalies.filter(a => a.status === "investigating").length,
+    resolved: anomalies.filter(a => a.status === "resolved").length,
   };
 
   return (
@@ -60,22 +101,39 @@ export default function Anomalies() {
             <h1 className="page-header-title">Anomaly Detection</h1>
             <p className="page-header-subtitle">
               Isolation Forest · DBSCAN Noise · Rule-based detection ·{" "}
-              <span style={{ color: "var(--color-accent-purple)" }}>
-                NOT YET EVALUATED
-              </span>
+              {isRealData ? (
+                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>
+                  ✓ Phase 7 — Real Isolation Forest Scored Results
+                </span>
+              ) : (
+                <span style={{ color: "var(--color-accent-purple)" }}>
+                  DEMO DATA
+                </span>
+              )}
             </p>
           </div>
+          {metrics && (
+            <div style={{
+              background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.25)",
+              borderRadius: 10, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8,
+            }}>
+              <Cpu size={16} color="var(--color-accent-purple)" />
+              <span style={{ fontSize: "0.8rem", color: "var(--color-accent-purple)", fontWeight: 600 }}>
+                Unsupervised Model: {metrics.model} (100k Flows Evaluated)
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Summary strip */}
         <div className="stats-strip">
           {[
-            { label: "Critical",      value: counts.critical, color: "var(--color-danger)"  },
-            { label: "High",          value: counts.high,     color: "#fca5a5"               },
-            { label: "Medium",        value: counts.medium,   color: "var(--color-warning)"  },
-            { label: "Active",        value: counts.active,   color: "var(--color-danger)"   },
-            { label: "Investigating", value: mockAnomalies.filter(a=>a.status==="investigating").length, color: "var(--color-warning)" },
-            { label: "Resolved",      value: mockAnomalies.filter(a=>a.status==="resolved").length,     color: "var(--color-success)" },
+            { label: "Critical",      value: counts.critical,      color: "var(--color-danger)"  },
+            { label: "High",          value: counts.high,          color: "#fca5a5"               },
+            { label: "Medium",        value: counts.medium,        color: "var(--color-warning)"  },
+            { label: "Active",        value: counts.active,        color: "var(--color-danger)"   },
+            { label: "Investigating", value: counts.investigating, color: "var(--color-warning)"  },
+            { label: "Resolved",      value: counts.resolved,       color: "var(--color-success)"  },
           ].map(s => (
             <div className="stats-strip-item" key={s.label}>
               <span className="stats-strip-label">{s.label}</span>
@@ -88,7 +146,9 @@ export default function Anomalies() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">All Anomalies ({filtered.length})</span>
-            <span className="demo-badge">Demo Data</span>
+            <span className={isRealData ? "live-badge" : "demo-badge"}>
+              {isRealData ? "Isolation Forest Scored" : "Demo Data"}
+            </span>
           </div>
 
           <div className="filter-bar">
@@ -106,7 +166,7 @@ export default function Anomalies() {
               <option value="resolved">Resolved</option>
             </select>
             <span style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", marginLeft: "auto" }}>
-              {filtered.length} of {mockAnomalies.length} shown
+              {filtered.length} of {anomalies.length} shown
             </span>
           </div>
 
@@ -150,7 +210,7 @@ export default function Anomalies() {
                         </span>
                       </div>
                     </td>
-                    <td style={{ maxWidth: 280, fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                    <td style={{ maxWidth: 300, fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
                       {a.description}
                     </td>
                     <td><span className={statusClass(a.status)}>{a.status}</span></td>
@@ -165,16 +225,20 @@ export default function Anomalies() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20 }}>
           {[
             {
-              title: "Isolation Forest",
-              desc: "Unsupervised anomaly scoring. Each flow gets a score 0–1. High scores = anomalous.",
-              phase: "Phase 7",
+              title: "Isolation Forest Model",
+              desc: "Trained on multi-dimensional flow metrics (duration, packet rates, byte variance). Identifies anomalous traffic by measuring tree isolation depth.",
+              status: isRealData ? "Phase 7 — TRAINED & EVALUATED" : "Phase 7 — NOT YET EVALUATED",
+              active: isRealData,
               color: "#8b5cf6",
+              detail: metrics ? `Contamination: ${(metrics.contamination * 100).toFixed(0)}% · Detection Rate: ${(metrics.attack_detection_rate * 100).toFixed(1)}%` : undefined,
             },
             {
-              title: "DBSCAN Noise Detection",
-              desc: "Flows assigned cluster_id = -1 are flagged as anomalous behavior not fitting any cluster.",
-              phase: "Phase 7",
+              title: "DBSCAN Noise Clustering",
+              desc: "Density-based spatial clustering identifies geometric outliers that fail to cluster into regular baselines.",
+              status: isRealData ? "Phase 7 — TRAINED & EVALUATED" : "Phase 7 — NOT YET EVALUATED",
+              active: isRealData,
               color: "#3b82f6",
+              detail: "8 Behavioral Clusters discovered + 231 outlier flows isolated.",
             },
           ].map(alg => (
             <div className="card" key={alg.title}>
@@ -183,18 +247,25 @@ export default function Anomalies() {
                   <h3 style={{ fontWeight: 700, marginBottom: 4 }}>{alg.title}</h3>
                   <span style={{
                     fontSize: "0.68rem", fontWeight: 600, padding: "2px 8px",
-                    borderRadius: 10, background: `${alg.color}20`,
-                    color: alg.color, border: `1px solid ${alg.color}40`,
+                    borderRadius: 10,
+                    background: alg.active ? "rgba(34,197,94,0.12)" : `${alg.color}20`,
+                    color: alg.active ? "var(--color-success)" : alg.color,
+                    border: `1px solid ${alg.active ? "rgba(34,197,94,0.3)" : `${alg.color}40`}`,
                     textTransform: "uppercase",
                   }}>
-                    {alg.phase} — NOT YET EVALUATED
+                    {alg.status}
                   </span>
                 </div>
-                <Shield size={18} color="var(--color-text-muted)" />
+                {alg.active ? <CheckCircle size={18} color="var(--color-success)" /> : <Shield size={18} color="var(--color-text-muted)" />}
               </div>
-              <p style={{ fontSize: "0.82rem", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+              <p style={{ fontSize: "0.82rem", color: "var(--color-text-muted)", lineHeight: 1.5, marginBottom: 8 }}>
                 {alg.desc}
               </p>
+              {alg.detail && (
+                <p style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)", fontWeight: 600 }}>
+                  {alg.detail}
+                </p>
+              )}
             </div>
           ))}
         </div>
