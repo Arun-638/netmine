@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — FastAPI Application Entry Point (Phase 4)
 #
 # CHANGES FROM PHASE 3:
@@ -12,17 +12,24 @@
 #
 # Swagger UI: http://localhost:8000/docs
 # =========================================================
+import sys
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+# Ensure netmine project root is on sys.path
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from app.core.config import settings
 from app.database.base import Base
 from app.database.session import engine, SessionLocal
 from app.database import models  # noqa: registers models with Base
 from app.services.seed import seed_demo_data
-from app.api import health, dashboard, traffic, anomalies, devices, clusters, rules, ml
+from app.api import health, dashboard, traffic, anomalies, devices, clusters, rules, ml, capture
 
 
 @asynccontextmanager
@@ -118,6 +125,7 @@ def create_app() -> FastAPI:
     app.include_router(clusters.router)
     app.include_router(rules.router)
     app.include_router(ml.router)
+    app.include_router(capture.router)
 
     @app.get("/", include_in_schema=False)
     async def root():

@@ -19,8 +19,9 @@
 | Phase 6 | ML Training Pipeline (CICIDS2017) | ✅ Done |
 | Phase 7 | Data Mining & Anomaly Detection (DBSCAN + Apriori + IsoForest) | ✅ Done |
 | Phase 8 | UNSW-NB15 Benchmark & Cross-Dataset Evaluation | ✅ Done |
-| Phase 9 | Real-Time Packet Capture & Flow Engine (TShark) | 🔜 Next |
-| Phase 10–15 | Live System Integration, Reporting & VIVA Defense | 🔜 |
+| Phase 9 | Real-Time Packet Capture & Flow Engine (TShark + Live ML) | ✅ Done |
+| Phase 10 | Live Alerting, Database Logging & System Telemetry | 🔜 Next |
+| Phase 11–15 | Automated Reporting, End-to-End Testing & VIVA Defense | 🔜 |
 
 ---
 
