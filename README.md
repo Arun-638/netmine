@@ -1,4 +1,4 @@
-﻿# NetMine AI — AI-Powered Network Traffic Analytics & Anomaly Detection Platform
+# NetMine AI — AI-Powered Network Traffic Analytics & Anomaly Detection Platform
 
 **Team:** Arun A Raj · Adithyan H · Vaishnav Prakash
 
@@ -12,14 +12,15 @@
 |-------|-------------|--------|
 | Phase 0 | Environment Validation | ✅ Done |
 | Phase 1 | React + Vite Frontend Foundation | ✅ Done |
-| Phase 2 | Frontend Analytics UI | 🔜 Next |
-| Phase 3 | FastAPI Backend Foundation | 🔜 |
-| Phase 4 | Database Integration | 🔜 |
-| Phase 5 | CICIDS2017 Exploration | 🔜 |
-| Phase 6 | ML Training Pipeline | 🔜 |
-| Phase 7 | Data Mining | 🔜 |
-| Phase 8 | UNSW-NB15 Evaluation | 🔜 |
-| Phase 9–15 | Live Capture → Integration → Testing | 🔜 |
+| Phase 2 | Frontend Analytics UI | ✅ Done |
+| Phase 3 | FastAPI Backend Foundation | ✅ Done |
+| Phase 4 | Database Integration | ✅ Done |
+| Phase 5 | CICIDS2017 Exploration | ✅ Done |
+| Phase 6 | ML Training Pipeline (CICIDS2017) | ✅ Done |
+| Phase 7 | Data Mining & Anomaly Detection (DBSCAN + Apriori + IsoForest) | ✅ Done |
+| Phase 8 | UNSW-NB15 Benchmark & Cross-Dataset Evaluation | ✅ Done |
+| Phase 9 | Real-Time Packet Capture & Flow Engine (TShark) | 🔜 Next |
+| Phase 10–15 | Live System Integration, Reporting & VIVA Defense | 🔜 |
 
 ---
 
