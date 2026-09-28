@@ -1,83 +1,107 @@
 ﻿# =========================================================
-# NetMine AI — FastAPI Application Entry Point
+# NetMine AI — FastAPI Application Entry Point (Phase 4)
 #
-# HOW TO RUN:
-#   From project root (f:\netmine):
-#   .venv\Scripts\uvicorn.exe backend.app.main:app --reload --host 0.0.0.0 --port 8000
+# CHANGES FROM PHASE 3:
+#   - Added lifespan context manager (startup/shutdown)
+#   - On startup: creates all SQLite tables + seeds demo data
+#   - API routes now injected with DB session via Depends(get_db)
 #
-# API DOCUMENTATION (auto-generated):
-#   http://localhost:8000/docs       ← Swagger UI
-#   http://localhost:8000/redoc      ← ReDoc
-#   http://localhost:8000/openapi.json ← OpenAPI spec
+# HOW TO RUN (from f:\netmine):
+#   .\start_backend.ps1
+#   OR: Set-Location backend; ..\\.venv\Scripts\uvicorn.exe app.main:app --reload --port 8000
 #
-# CORS:
-#   Allows requests from the React dev server at localhost:5173.
-#   In production, set FRONTEND_ORIGIN in .env.
-#
-# PHASE STATUS:
-#   Phase 3 ✅ — API structure, schemas, health check, demo data
-#   Phase 4 🔜 — SQLAlchemy + SQLite database
-#   Phase 9 🔜 — Live TShark WebSocket stream
+# Swagger UI: http://localhost:8000/docs
 # =========================================================
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.database.base import Base
+from app.database.session import engine, SessionLocal
+from app.database import models  # noqa: registers models with Base
+from app.services.seed import seed_demo_data
 from app.api import health, dashboard, traffic, anomalies, devices, clusters, rules, ml
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI lifespan context — runs startup code before serving requests.
+
+    STARTUP:
+      1. Create all tables if they don't exist (idempotent)
+      2. Seed demo data if DB is empty
+
+    SHUTDOWN:
+      Nothing to clean up for SQLite. For PostgreSQL we'd close the pool.
+    """
+    # ── Create tables ─────────────────────────────────────
+    # Base.metadata.create_all() reads all registered ORM models
+    # and issues CREATE TABLE IF NOT EXISTS statements.
+    Base.metadata.create_all(bind=engine)
+    print("[NetMine] SQLite tables created (or already exist)")
+
+    # ── Seed demo data ────────────────────────────────────
+    with SessionLocal() as db:
+        result = seed_demo_data(db)
+        print(f"[NetMine] Seed result: {result['status']} — "
+              f"flows={result.get('flows_inserted', 0)} "
+              f"anomalies={result.get('anomalies_inserted', 0)} "
+              f"devices={result.get('devices_inserted', 0)}")
+
+    yield  # ← server is live here
+
+    # ── Shutdown ──────────────────────────────────────────
+    print("[NetMine] Shutting down...")
+
+
 def create_app() -> FastAPI:
-    """
-    Application factory.
-    Creates and configures the FastAPI instance.
-    """
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
+        lifespan=lifespan,
         description="""
 ## NetMine AI — Network Traffic Analytics API
 
-AI-Powered Network Traffic Analytics & Anomaly Detection Platform.
-
 **Team:** Arun A Raj · Adithyan H · Vaishnav Prakash
 
----
-
-### Current Status
-- **Phase 3** ✅ — API foundation complete
-- **All ML/Data Mining endpoints** return `NOT_YET_EVALUATED` demo data
-- **Capture endpoints** are not yet connected to TShark (Phase 9)
+### Phase Status
+| Phase | Status |
+|-------|--------|
+| Phase 3 — API Foundation | ✅ Done |
+| **Phase 4 — Database (SQLite)** | ✅ **Done** |
+| Phase 5 — CICIDS2017 EDA | 🔜 Next |
+| Phase 6 — ML Training | 🔜 |
 
 ### Data Source Labels
 | Label | Meaning |
 |-------|---------|
-| `DEMO` | Hardcoded demo values, realistic but not measured |
-| `NOT_YET_EVALUATED` | ML training has not been run yet |
+| `DEMO` | Demo data seeded into SQLite |
+| `NOT_YET_EVALUATED` | ML not yet trained |
 | `LIVE` | Real TShark capture (Phase 9+) |
-| `FILE` | Loaded from CICIDS2017 processed file |
         """,
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_tags=[
-            {"name": "Health",           "description": "Server health and status checks"},
-            {"name": "Dashboard",        "description": "Aggregated dashboard data"},
-            {"name": "Traffic",          "description": "Network flow data and statistics"},
-            {"name": "Anomalies",        "description": "Detected anomalies and threat indicators"},
-            {"name": "Devices",          "description": "Network host inventory"},
-            {"name": "Data Mining",      "description": "DBSCAN clusters and Apriori association rules"},
-            {"name": "Machine Learning", "description": "ML model training status and evaluation metrics"},
+            {"name": "Health",           "description": "Server health and database status"},
+            {"name": "Dashboard",        "description": "Aggregated dashboard data (DB-backed)"},
+            {"name": "Traffic",          "description": "Traffic flows — queried from SQLite"},
+            {"name": "Anomalies",        "description": "Anomaly records — queried from SQLite"},
+            {"name": "Devices",          "description": "Device inventory — queried from SQLite"},
+            {"name": "Data Mining",      "description": "DBSCAN clusters and association rules"},
+            {"name": "Machine Learning", "description": "ML model metrics — NOT_YET_EVALUATED"},
         ],
     )
 
-    # ── CORS ────────────────────────────────────────────────
-    # Allow the React Vite dev server to call this API.
+    # ── CORS ──────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
             settings.FRONTEND_ORIGIN,
-            "http://localhost:5173",   # Vite default
-            "http://localhost:4173",   # Vite preview
+            "http://localhost:5173",
+            "http://localhost:4173",
             "http://127.0.0.1:5173",
         ],
         allow_credentials=True,
@@ -85,7 +109,7 @@ AI-Powered Network Traffic Analytics & Anomaly Detection Platform.
         allow_headers=["*"],
     )
 
-    # ── Route registration ───────────────────────────────────
+    # ── Routes ────────────────────────────────────────────
     app.include_router(health.router)
     app.include_router(dashboard.router)
     app.include_router(traffic.router)
@@ -95,19 +119,17 @@ AI-Powered Network Traffic Analytics & Anomaly Detection Platform.
     app.include_router(rules.router)
     app.include_router(ml.router)
 
-    # ── Root redirect ────────────────────────────────────────
     @app.get("/", include_in_schema=False)
     async def root():
         return JSONResponse({
-            "app": settings.APP_NAME,
+            "app":     settings.APP_NAME,
             "version": settings.APP_VERSION,
-            "docs": "/docs",
-            "health": "/api/health",
-            "status": "Phase 3 — API foundation complete",
+            "phase":   "Phase 4 — Database Integration complete",
+            "docs":    "/docs",
+            "health":  "/api/health",
         })
 
     return app
 
 
-# Create the app instance used by uvicorn
 app = create_app()

@@ -1,38 +1,29 @@
-﻿# =========================================================
-# NetMine AI — /api/dashboard
-#
-# What it does:
-#   Returns all data needed for the Dashboard page
-#   in one single request (avoids multiple round-trips).
-#
-# Try it: GET http://localhost:8000/api/dashboard
-# =========================================================
-from fastapi import APIRouter
+﻿from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.database.session import get_db
 from app.schemas import DashboardResponse
-from app.services.mock_data import (
-    DEMO_METRICS, DEMO_TREND, DEMO_PROTOCOLS, DEMO_STATUS
-)
+from app.services import db_service
+from app.services.mock_data import DEMO_TREND, DEMO_PROTOCOLS, DEMO_STATUS
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 
-@router.get("", response_model=DashboardResponse, summary="Dashboard summary data")
-async def get_dashboard() -> DashboardResponse:
+@router.get("", response_model=DashboardResponse, summary="Dashboard summary — DB-backed metrics")
+async def get_dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
     """
-    Returns the full dashboard payload:
-    - metrics: 6 KPI cards
-    - traffic_trend: 24-hour trend data
-    - protocol_distribution: per-protocol breakdown
-    - system_status: capture and processing metrics
-    - data_source: "DEMO" until Phase 9
+    Returns the full dashboard payload with live DB metrics.
+    - metrics: computed from real DB counts (flows, anomalies, devices)
+    - traffic_trend: demo 24h trend (Phase 9 will replace)
+    - protocol_distribution: aggregated from DB
+    - system_status: capture status (Phase 9 will update)
+    """
+    metrics      = db_service.get_dashboard_metrics(db)
+    proto_stats  = db_service.get_protocol_stats(db)
 
-    NOTE: All values are DEMO DATA.
-    Real data will flow from the database and live capture in Phase 9.
-    """
     return DashboardResponse(
-        metrics=DEMO_METRICS,
+        metrics=metrics,
         traffic_trend=DEMO_TREND,
-        protocol_distribution=DEMO_PROTOCOLS,
+        protocol_distribution=proto_stats if proto_stats else DEMO_PROTOCOLS,
         system_status=DEMO_STATUS,
-        data_source="DEMO",
+        data_source="DB_DEMO",
     )

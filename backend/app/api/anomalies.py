@@ -1,45 +1,34 @@
-﻿# =========================================================
-# NetMine AI — /api/anomalies
-#
-# What it does:
-#   Returns detected anomalies.
-#   Supports filtering by severity and status.
-#
-# Try it:
-#   GET /api/anomalies
-#   GET /api/anomalies?severity=high
-#   GET /api/anomalies?status=active
-# =========================================================
-from fastapi import APIRouter, Query
+﻿from fastapi import APIRouter, Query, Depends
 from typing import Optional
-from app.schemas import AnomalyList
-from app.services.mock_data import DEMO_ANOMALIES
+from sqlalchemy.orm import Session
+from app.database.session import get_db
+from app.schemas import AnomalyList, Anomaly
+from app.services import db_service
 
 router = APIRouter(prefix="/api/anomalies", tags=["Anomalies"])
 
 
-@router.get("", response_model=AnomalyList, summary="Get anomalies")
+@router.get("", response_model=AnomalyList, summary="Get anomalies from database")
 async def get_anomalies(
-    severity: Optional[str] = Query(None, description="Filter by severity: low|medium|high|critical"),
-    status:   Optional[str] = Query(None, description="Filter by status: active|investigating|resolved"),
+    severity: Optional[str] = Query(None, description="Filter: low|medium|high|critical"),
+    status:   Optional[str] = Query(None, description="Filter: active|investigating|resolved"),
+    db: Session = Depends(get_db),
 ) -> AnomalyList:
     """
-    Returns detected anomalies.
-    - Filterable by severity and status.
-    - Data source: DEMO until Isolation Forest is trained (Phase 7).
-    - ⚠ NOT YET EVALUATED: all scores are demo values.
+    Returns anomaly records from SQLite.
+    Phase 4: Demo anomalies seeded on startup.
+    Phase 7: Real Isolation Forest scores will replace these.
     """
-    anomalies = DEMO_ANOMALIES
-    if severity:
-        anomalies = [a for a in anomalies if a.severity == severity.lower()]
-    if status:
-        anomalies = [a for a in anomalies if a.status == status.lower()]
-
-    active_count = sum(1 for a in DEMO_ANOMALIES if a.status == "active")
-
-    return AnomalyList(
-        anomalies=anomalies,
-        total=len(anomalies),
-        active_count=active_count,
-        data_source="DEMO",
-    )
+    rows = db_service.get_anomalies(db, severity=severity, status=status)
+    anomalies = [
+        Anomaly(
+            id=r.id,
+            timestamp=r.timestamp.isoformat() if hasattr(r.timestamp, "isoformat") else str(r.timestamp),
+            src_ip=r.src_ip, dst_ip=r.dst_ip, type=r.type,
+            severity=r.severity, score=r.score,
+            description=r.description, status=r.status,
+        )
+        for r in rows
+    ]
+    active_count = db_service.count_active_anomalies(db)
+    return AnomalyList(anomalies=anomalies, total=len(anomalies), active_count=active_count, data_source="DB_DEMO")
