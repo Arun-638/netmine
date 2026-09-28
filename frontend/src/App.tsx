@@ -1,4 +1,4 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — Root Application Router
 // Uses: React Router DOM v6
 // =========================================================
@@ -33,6 +33,7 @@ export default function App() {
             }
           />
           <Route path="/live"      element={<LiveTraffic />}       />
+          <Route path="/traffic"   element={<LiveTraffic />}       />
           <Route path="/anomalies" element={<Anomalies />}         />
           <Route path="/devices"   element={<Devices />}           />
           <Route path="/protocols" element={<Protocols />}         />

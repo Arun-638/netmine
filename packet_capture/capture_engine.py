@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — Real-Time Capture & Live ML Inference Engine
 #
 # Phase 9:
@@ -328,3 +328,17 @@ class LiveCaptureEngine:
     def get_recent_flows(self, limit=50):
         with self.lock:
             return list(self.recent_flows)[:limit]
+
+    def clear_flows(self):
+        with self.lock:
+            self.recent_flows.clear()
+            self.total_flows = 0
+            self.total_packets = 0
+            self.total_bytes = 0
+            self.attack_count = 0
+            self._recent_pkts = 0
+            self._recent_bytes = 0
+            self.packets_per_sec = 0.0
+            self.bytes_per_sec = 0.0
+        return {"status": "cleared"}
+

@@ -1,4 +1,4 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — Live Traffic Monitor (Phase 9 updated)
 //
 // Dual-Mode Traffic Engine:
@@ -169,9 +169,23 @@ export default function LiveTraffic() {
     }
   };
 
-  const handleClearFlows = () => {
+  const handleClearFlows = async () => {
     if (engineMode === "LIVE") {
       setLiveFlows([]);
+      try {
+        await fetch(`${API}/api/capture/clear`, { method: "POST" });
+        setCaptureStatus(prev => ({
+          ...prev,
+          packets_captured: 0,
+          bytes_captured: 0,
+          flows_analyzed: 0,
+          attacks_detected: 0,
+          packets_per_sec: 0,
+          bytes_per_sec: 0,
+        }));
+      } catch (e) {
+        console.error("Failed to clear live flows:", e);
+      }
     } else {
       sim.clear();
     }
@@ -292,7 +306,11 @@ export default function LiveTraffic() {
                 </>
               )}
 
-              <button className="btn btn-ghost" onClick={handleClearFlows} disabled={displayedFlows.length === 0}>
+              <button
+                className="btn btn-ghost"
+                onClick={handleClearFlows}
+                disabled={displayedFlows.length === 0 && (engineMode !== "LIVE" || captureStatus.flows_analyzed === 0)}
+              >
                 <Trash2 size={13} /> Clear Table
               </button>
             </div>

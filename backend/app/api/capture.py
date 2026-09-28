@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — /api/capture (Phase 9)
 #
 # FastAPI router for real-time packet capture, interface
@@ -43,6 +43,12 @@ async def stop_capture():
 async def get_status():
     """Returns throughput, packet counts, and active status."""
     return engine.get_status()
+
+
+@router.post("/clear", summary="Clear recent flows buffer")
+async def clear_flows():
+    """Clears the in-memory classified flows ring buffer."""
+    return engine.clear_flows()
 
 
 @router.get("/flows", summary="Get recent classified flows")
