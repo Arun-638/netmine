@@ -1,0 +1,83 @@
+﻿# =========================================================
+# NetMine AI — .gitignore
+# =========================================================
+
+# DATASETS — NEVER COMMIT RAW DATASETS
+data/raw/
+data/processed/
+data/sample/
+*.pcap
+*.pcapng
+*ISCX.csv
+*pcap_ISCX.csv
+
+# MODELS — large serialized artifacts
+models/*.joblib
+models/*.pkl
+models/*.h5
+models/*.pt
+models/*.onnx
+!models/feature_config.json
+!models/.gitkeep
+
+# PYTHON
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
+
+# ENVIRONMENT / SECRETS — NEVER COMMIT
+.env
+.env.*
+!.env.example
+*.secret
+secrets.json
+
+# NODE / FRONTEND
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+*.tsbuildinfo
+
+# DATABASE
+*.sqlite
+*.sqlite3
+*.db
+
+# LOGS
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# TEMPORARY
+tmp/
+temp/
+*.tmp
+capture_*.pcap
+
+# PYTEST
+.pytest_cache/
+htmlcov/
+.coverage
