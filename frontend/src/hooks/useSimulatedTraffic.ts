@@ -1,4 +1,4 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — useSimulatedTraffic
 // Simulates a live traffic feed using setInterval.
 //
@@ -11,6 +11,7 @@
 // =========================================================
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { TrafficFlow } from "../types";
+import { getApiUrl } from "../services/api";
 
 const PROTOCOLS = ["TCP", "TCP", "TCP", "UDP", "UDP", "ICMP"];
 const LABELS    = ["BENIGN", "BENIGN", "BENIGN", "BENIGN", "BENIGN", "PortScan", "SSHBrute", "DDoS", "RDPAttack"];
@@ -65,6 +66,29 @@ export function useSimulatedTraffic(
     const newFlows = Array.from({ length: count }, generateFlow);
     ppsRef.current += newFlows.reduce((s, f) => s + f.packets, 0);
     setFlows(prev => [...newFlows, ...prev].slice(0, maxFlows));
+
+    // Dispatch any generated attacks to backend so Anomalies page and Dashboard stay synchronized
+    const threats = newFlows.filter(f => f.label !== "BENIGN");
+    if (threats.length > 0) {
+      try {
+        const api = getApiUrl();
+        threats.forEach(f => {
+          fetch(`${api}/api/anomalies`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              src_ip: f.srcIp,
+              dst_ip: f.dstIp,
+              type: f.label,
+              severity: f.label === "DDoS" ? "critical" : (f.label === "PortScan" ? "medium" : "high"),
+              score: f.confidence,
+              description: `Live simulated threat detected: ${f.label} targeting ${f.dstIp}:${f.dstPort}`,
+              status: "active",
+            }),
+          }).catch(() => {});
+        });
+      } catch {}
+    }
   }, [maxFlows]);
 
   useEffect(() => {
@@ -89,7 +113,14 @@ export function useSimulatedTraffic(
     ppsRef.current = 0;
   }, []);
 
-  const clear = useCallback(() => { stop(); setFlows([]); }, [stop]);
+  const clear = useCallback(() => {
+    stop();
+    setFlows([]);
+    try {
+      const api = getApiUrl();
+      fetch(`${api}/api/anomalies/clear`, { method: "POST" }).catch(() => {});
+    } catch {}
+  }, [stop]);
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 

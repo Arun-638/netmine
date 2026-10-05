@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — Pydantic Response Schemas
 #
 # WHY PYDANTIC:
@@ -187,6 +187,9 @@ class MLMetricsList(BaseModel):
     models: list[MLModelMetrics]
     best_model: Optional[str] = None
     data_source: str = "NOT_YET_EVALUATED"
+    train_rows: Optional[int] = None
+    train_rows_raw: Optional[int] = None
+    resampling: Optional[dict] = None
 
 
 # ── Live Capture Controls ──────────────────────────────────

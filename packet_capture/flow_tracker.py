@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — Flow Tracker (Phase 9)
 #
 # Aggregates raw packet streams into 5-tuple bidirectional flows.
@@ -174,7 +174,7 @@ class Flow:
 
 
 class FlowTracker:
-    def __init__(self, timeout_sec=5.0):
+    def __init__(self, timeout_sec=2.0):
         self.timeout_sec = timeout_sec
         self.active_flows = {}  # key -> Flow
 

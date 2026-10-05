@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — /api/ml  (Phase 8 updated)
 #
 # Serves:
@@ -50,6 +50,9 @@ async def get_ml_metrics() -> MLMetricsList:
         models=models,
         best_model=data.get("best_model"),
         data_source="CICIDS2017_TRAINED",
+        train_rows=data.get("train_rows"),
+        train_rows_raw=data.get("train_rows_raw"),
+        resampling=data.get("resampling"),
     )
 
 

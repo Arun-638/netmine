@@ -11,6 +11,7 @@
 #   OR: Set-Location backend; ..\\.venv\Scripts\uvicorn.exe app.main:app --reload --port 8000
 #
 # Swagger UI: http://localhost:8000/docs
+# NetMine AI Live Capture Engine Active v2
 # =========================================================
 import sys
 from pathlib import Path
@@ -78,16 +79,23 @@ def create_app() -> FastAPI:
 | Phase | Status |
 |-------|--------|
 | Phase 3 — API Foundation | ✅ Done |
-| **Phase 4 — Database (SQLite)** | ✅ **Done** |
-| Phase 5 — CICIDS2017 EDA | 🔜 Next |
-| Phase 6 — ML Training | 🔜 |
+| Phase 4 — Database (SQLite) | ✅ Done |
+| Phase 5 — CICIDS2017 EDA | ✅ Done |
+| Phase 6 — ML Training (DT/RF/XGBoost) | ✅ Done |
+| Phase 7 — Anomaly Detection (IsolationForest + DBSCAN) | ✅ Done |
+| Phase 8 — UNSW-NB15 Cross-Dataset Benchmark | ✅ Done |
+| Phase 9 — Live Capture (TShark + Npcap) | ✅ Done |
+| Phase 10 — Class Imbalance (RUS + SMOTE) | ✅ Done |
 
 ### Data Source Labels
 | Label | Meaning |
 |-------|---------|
-| `DEMO` | Demo data seeded into SQLite |
-| `NOT_YET_EVALUATED` | ML not yet trained |
-| `LIVE` | Real TShark capture (Phase 9+) |
+| `DB_DEMO` | Demo data seeded into SQLite |
+| `ISOLATION_FOREST_MEASURED` | Real Isolation Forest anomaly scores |
+| `DBSCAN_MEASURED` | Real DBSCAN cluster assignments |
+| `APRIORI_MEASURED` | Real Apriori association rules |
+| `CICIDS2017_TRAINED` | Models trained on CICIDS2017 |
+| `LIVE_CAPTURE` | Real-time TShark/Npcap capture |
         """,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -108,8 +116,10 @@ def create_app() -> FastAPI:
         allow_origins=[
             settings.FRONTEND_ORIGIN,
             "http://localhost:5173",
+            "http://localhost:5174",
             "http://localhost:4173",
             "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
         ],
         allow_credentials=True,
         allow_methods=["*"],
@@ -132,7 +142,7 @@ def create_app() -> FastAPI:
         return JSONResponse({
             "app":     settings.APP_NAME,
             "version": settings.APP_VERSION,
-            "phase":   "Phase 4 — Database Integration complete",
+            "phase":   "Phase 10 — Class Balancing (RUS + SMOTE) complete",
             "docs":    "/docs",
             "health":  "/api/health",
         })

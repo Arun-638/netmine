@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — Phase 9: Real-Time Packet Capture & Flow Engine
 #
 # Connects to TShark to capture live network traffic,
@@ -108,6 +108,7 @@ class CaptureService:
         self.lock = threading.Lock()
         self.active_flows: Dict[str, FlowRecord] = {}
         self.recent_flows = deque(maxlen=200)
+        self.recent_anomalies = deque(maxlen=200)
 
         self.packets_captured = 0
         self.flows_processed = 0
@@ -215,9 +216,40 @@ class CaptureService:
             flows = list(self.recent_flows)
             return flows[-limit:]
 
+    def get_recent_anomalies(self, limit: int = 50) -> List[dict]:
+        with self.lock:
+            return list(self.recent_anomalies)[:limit]
+
+    def add_anomaly(self, anom: dict) -> dict:
+        with self.lock:
+            self.threats_detected += 1
+            if "id" not in anom:
+                anom["id"] = f"anom-live-{self.threats_detected:04d}"
+            if "timestamp" not in anom:
+                anom["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            if "status" not in anom:
+                anom["status"] = "active"
+            if "data_source" not in anom:
+                anom["data_source"] = "LIVE_CAPTURE"
+            self.recent_anomalies.appendleft(anom)
+            return anom
+
+    def update_anomaly_status(self, anom_id: str, new_status: str) -> bool:
+        with self.lock:
+            for a in self.recent_anomalies:
+                if a.get("id") == anom_id:
+                    a["status"] = new_status
+                    return True
+            return False
+
     def clear(self):
         with self.lock:
             self.recent_flows.clear()
+            self.recent_anomalies.clear()
+
+    def clear_anomalies(self):
+        with self.lock:
+            self.recent_anomalies.clear()
 
     def _capture_worker(self):
         cmd = [
@@ -387,6 +419,37 @@ class CaptureService:
         is_threat = (predicted_label != "BENIGN") or (anomaly_score >= 0.70)
         if is_threat:
             self.threats_detected += 1
+
+            if anomaly_score >= 0.85 or predicted_label in ["DDoS", "DoS Hulk", "Heartbleed"]:
+                severity = "critical"
+            elif anomaly_score >= 0.65 or predicted_label in ["PortScan", "Bot", "Infiltration"]:
+                severity = "high"
+            elif anomaly_score >= 0.45 or "Patator" in predicted_label:
+                severity = "medium"
+            else:
+                severity = "low"
+
+            anom_type = predicted_label if predicted_label != "BENIGN" else "Isolation Forest Outlier"
+            anom_desc = (
+                f"Live {predicted_label} threat detected from {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port} "
+                f"({flow.protocol}, {total_bytes:,} bytes, {total_packets} pkts)."
+                if predicted_label != "BENIGN" else
+                f"Statistical traffic volume outlier flagged by Isolation Forest (score: {anomaly_score:.2f}) on {flow.src_ip} -> {flow.dst_ip}."
+            )
+
+            anom_item = {
+                "id": f"anom-live-{self.threats_detected:04d}",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(flow.last_time)),
+                "src_ip": flow.src_ip,
+                "dst_ip": flow.dst_ip,
+                "type": anom_type,
+                "severity": severity,
+                "score": round(anomaly_score if anomaly_score >= 0.5 else confidence, 3),
+                "description": anom_desc,
+                "status": "active",
+                "data_source": "LIVE_CAPTURE",
+            }
+            self.recent_anomalies.appendleft(anom_item)
 
         self.flows_processed += 1
         flow_item = {

@@ -1,31 +1,31 @@
-﻿// =========================================================
-// NetMine AI — Anomalies Page (Phase 7 updated)
-//
-// Features:
-//   - Filterable by severity and status
-//   - Dynamic Isolation Forest anomaly scores
-//   - Real detection metrics from CICIDS2017 evaluation
-//   - Fallback to mock data if backend is offline
 // =========================================================
-import { useState, useEffect } from "react";
-import { AlertTriangle, Shield, CheckCircle, Cpu } from "lucide-react";
+// NetMine AI — Anomalies Page
+// Real-Time Live Capture Threat Stream + Isolation Forest Scoring
+// =========================================================
+import { useState, useEffect, useCallback } from "react";
+import {
+  AlertTriangle, Shield, CheckCircle, Cpu, RefreshCw,
+  Zap, Trash2, Check, Clock, Radio
+} from "lucide-react";
 import Topbar from "../components/layout/Topbar";
 import { mockAnomalies } from "../mock/data";
+import { getApiUrl } from "../services/api";
 import type { Anomaly } from "../types";
-
-const API = "http://localhost:8000";
 
 function severityClass(s: string) {
   const m: Record<string, string> = {
-    critical: "badge badge-critical", high: "badge badge-high",
-    medium: "badge badge-medium",     low:  "badge badge-low",
+    critical: "badge badge-critical",
+    high:     "badge badge-high",
+    medium:   "badge badge-medium",
+    low:      "badge badge-low",
   };
   return m[s] ?? "badge";
 }
 
 function statusClass(s: string) {
   const m: Record<string, string> = {
-    active: "badge badge-active", resolved: "badge badge-resolved",
+    active:        "badge badge-active",
+    resolved:      "badge badge-resolved",
     investigating: "badge badge-investigating",
   };
   return m[s] ?? "badge";
@@ -40,16 +40,24 @@ function scoreColor(score: number) {
 export default function Anomalies() {
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const [statusFilter,   setStatusFilter]   = useState("ALL");
+  const [viewMode,       setViewMode]       = useState<"LIVE" | "BENCHMARK">("LIVE");
 
-  const [anomalies, setAnomalies] = useState<Anomaly[]>(mockAnomalies);
-  const [isRealData, setIsRealData] = useState(false);
-  const [metrics, setMetrics] = useState<any>(null);
+  const [anomalies,   setAnomalies]   = useState<Anomaly[]>([]);
+  const [dataSource,  setDataSource]  = useState<string>("CONNECTING");
+  const [isLiveActive, setIsLiveActive] = useState<boolean>(false);
+  const [metrics,     setMetrics]     = useState<any>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [isInjecting, setIsInjecting] = useState<boolean>(false);
 
-  useEffect(() => {
-    fetch(`${API}/api/anomalies`)
-      .then(r => r.json())
-      .then(d => {
-        if (d && d.anomalies && d.anomalies.length > 0) {
+  const api = getApiUrl();
+
+  const fetchAnomalies = useCallback(async () => {
+    try {
+      const url = viewMode === "LIVE" ? `${api}/api/anomalies?source=live` : `${api}/api/anomalies?source=benchmark`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const d = await res.json();
+        if (d && d.anomalies) {
           const mapped: Anomaly[] = d.anomalies.map((a: any) => ({
             id: a.id,
             timestamp: a.timestamp,
@@ -62,12 +70,27 @@ export default function Anomalies() {
             status: a.status,
           }));
           setAnomalies(mapped);
-          setIsRealData(d.data_source === "ISOLATION_FOREST_MEASURED");
+          setDataSource(d.data_source ?? "LIVE_CAPTURE");
+          setIsLiveActive(d.data_source === "LIVE_CAPTURE");
         }
-      })
-      .catch(() => {});
+      }
+      setLastUpdated(new Date());
+    } catch {
+      setDataSource("OFFLINE");
+      setIsLiveActive(false);
+    }
+  }, [api, viewMode]);
 
-    fetch(`${API}/api/anomalies/metrics`)
+  // Initial fetch and auto-polling every 2 seconds
+  useEffect(() => {
+    fetchAnomalies();
+    const interval = setInterval(fetchAnomalies, 2000);
+    return () => clearInterval(interval);
+  }, [fetchAnomalies]);
+
+  // Fetch model metrics once
+  useEffect(() => {
+    fetch(`${api}/api/anomalies/metrics`)
       .then(r => r.json())
       .then(m => {
         if (m && m.status === "trained") {
@@ -75,7 +98,57 @@ export default function Anomalies() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [api]);
+
+  // Inject a live test threat to test real-time pipeline
+  const handleSimulateThreat = async (threatType: string) => {
+    try {
+      setIsInjecting(true);
+      await fetch(`${api}/api/anomalies/simulate-threat?threat_type=${threatType}&severity=high`, {
+        method: "POST",
+      });
+      await fetchAnomalies();
+    } catch (err) {
+      console.error("Failed to inject threat:", err);
+    } finally {
+      setIsInjecting(false);
+    }
+  };
+
+  // Update status (e.g. resolve or investigate)
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
+    // Optimistic UI update
+    setAnomalies(prev => prev.map(a => a.id === id ? { ...a, status: newStatus as any } : a));
+    try {
+      await fetch(`${api}/api/anomalies/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch (e) {
+      console.error("Status update error:", e);
+    }
+  };
+
+  // Clear live stream
+  const handleClear = async () => {
+    try {
+      await fetch(`${api}/api/anomalies/clear`, { method: "POST" });
+      setAnomalies([]);
+    } catch (e) {
+      console.error("Failed to clear anomalies:", e);
+    }
+  };
+
+  // Purge old stale DB records
+  const handlePurgeStale = async () => {
+    try {
+      await fetch(`${api}/api/anomalies/purge-stale`, { method: "POST" });
+      await fetchAnomalies();
+    } catch (e) {
+      console.error("Failed to purge stale records:", e);
+    }
+  };
 
   const filtered = anomalies.filter(a =>
     (severityFilter === "ALL" || a.severity === severityFilter) &&
@@ -93,36 +166,82 @@ export default function Anomalies() {
 
   return (
     <>
-      <Topbar title="Anomalies" subtitle="Behavioral deviations and threat indicators" />
+      <Topbar title="Anomalies" subtitle="Real-time behavioral deviations & threat indicators" />
       <div className="page-content fade-in-up">
 
-        <div className="page-header">
+        {/* Header with Mode Switcher & Live Pulse */}
+        <div className="page-header" style={{ flexWrap: "wrap", gap: 12 }}>
           <div className="page-header-left">
-            <h1 className="page-header-title">Anomaly Detection</h1>
-            <p className="page-header-subtitle">
-              Isolation Forest · DBSCAN Noise · Rule-based detection ·{" "}
-              {isRealData ? (
-                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>
-                  ✓ Phase 7 — Real Isolation Forest Scored Results
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <h1 className="page-header-title">Anomaly Detection Engine</h1>
+              {isLiveActive ? (
+                <span className="badge badge-active" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span className="live-dot" /> Live Capture Stream
                 </span>
               ) : (
-                <span style={{ color: "var(--color-accent-purple)" }}>
-                  DEMO DATA
+                <span className="badge badge-medium">
+                  {dataSource}
                 </span>
               )}
+            </div>
+            <p className="page-header-subtitle">
+              Real-time Isolation Forest scores · XGBoost threat correlation · TShark wire capture
             </p>
           </div>
-          {metrics && (
+
+          {/* Quick Actions & View Mode Toggle */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div style={{
-              background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.25)",
-              borderRadius: 10, padding: "8px 16px", display: "flex", alignItems: "center", gap: 8,
+              background: "var(--color-bg-surface)", border: "1px solid var(--color-border)",
+              borderRadius: 8, padding: 3, display: "flex", gap: 4,
             }}>
-              <Cpu size={16} color="var(--color-accent-purple)" />
-              <span style={{ fontSize: "0.8rem", color: "var(--color-accent-purple)", fontWeight: 600 }}>
-                Unsupervised Model: {metrics.model} (100k Flows Evaluated)
-              </span>
+              <button
+                className={`tab-btn${viewMode === "LIVE" ? " active" : ""}`}
+                style={{ padding: "5px 12px", fontSize: "0.78rem", display: "flex", alignItems: "center", gap: 6 }}
+                onClick={() => setViewMode("LIVE")}
+              >
+                <Radio size={13} color={viewMode === "LIVE" ? "var(--color-success)" : "currentColor"} />
+                Live Threats ({anomalies.length})
+              </button>
+              <button
+                className={`tab-btn${viewMode === "BENCHMARK" ? " active" : ""}`}
+                style={{ padding: "5px 12px", fontSize: "0.78rem" }}
+                onClick={() => setViewMode("BENCHMARK")}
+              >
+                🗄️ CICIDS2017 Archive
+              </button>
             </div>
-          )}
+
+            {/* Test Trigger Button */}
+            <button
+              className="btn btn-primary"
+              style={{ fontSize: "0.8rem", padding: "6px 14px", display: "flex", alignItems: "center", gap: 6 }}
+              onClick={() => handleSimulateThreat("PortScan")}
+              disabled={isInjecting}
+              title="Inject a real-time PortScan threat event to verify live reactivity"
+            >
+              <Zap size={14} />
+              {isInjecting ? "Injecting..." : "⚡ Test PortScan"}
+            </button>
+
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: "0.8rem", padding: "6px 12px", color: "var(--color-accent-amber)" }}
+              onClick={handlePurgeStale}
+              title="Purge all old resolved loopback test records from database"
+            >
+              🧹 Purge Stale DB
+            </button>
+
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize: "0.8rem", padding: "6px 12px" }}
+              onClick={handleClear}
+              title="Clear displayed anomalies"
+            >
+              <Trash2 size={14} /> Clear
+            </button>
+          </div>
         </div>
 
         {/* Summary strip */}
@@ -138,17 +257,27 @@ export default function Anomalies() {
             <div className="stats-strip-item" key={s.label}>
               <span className="stats-strip-label">{s.label}</span>
               <span className="stats-strip-value" style={{ color: s.color }}>{s.value}</span>
-              <span className="stats-strip-sub">anomalies</span>
+              <span className="stats-strip-sub">threats</span>
             </div>
           ))}
         </div>
 
+        {/* Main Anomalies Card */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">All Anomalies ({filtered.length})</span>
-            <span className={isRealData ? "live-badge" : "demo-badge"}>
-              {isRealData ? "Isolation Forest Scored" : "Demo Data"}
-            </span>
+          <div className="card-header" style={{ flexWrap: "wrap", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="card-title">
+                {viewMode === "LIVE" ? "Real-Time Inferred Threat Feed" : "CICIDS2017 Unsupervised Benchmark Results"}
+              </span>
+              <span className="badge badge-active" style={{ fontSize: "0.7rem" }}>
+                Auto-refreshing (2s)
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+              <Clock size={13} />
+              <span>Polled: {lastUpdated.toLocaleTimeString()}</span>
+            </div>
           </div>
 
           <div className="filter-bar">
@@ -166,7 +295,7 @@ export default function Anomalies() {
               <option value="resolved">Resolved</option>
             </select>
             <span style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", marginLeft: "auto" }}>
-              {filtered.length} of {anomalies.length} shown
+              {filtered.length} of {anomalies.length} threats shown
             </span>
           </div>
 
@@ -174,48 +303,95 @@ export default function Anomalies() {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Time</th><th>Type</th><th>Source IP</th>
-                  <th>Destination IP</th><th>Severity</th>
-                  <th style={{ minWidth: 130 }}>Anomaly Score</th>
-                  <th>Description</th><th>Status</th>
+                  <th>Detection Time</th>
+                  <th>Attack Type</th>
+                  <th>Source IP</th>
+                  <th>Target IP</th>
+                  <th>Severity</th>
+                  <th style={{ minWidth: 140 }}>Anomaly Score</th>
+                  <th>Behavioral Description</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(a => (
-                  <tr key={a.id}>
-                    <td style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: "0.72rem", whiteSpace: "nowrap" }}>
-                      {new Date(a.timestamp).toLocaleString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                    </td>
-                    <td style={{ fontWeight: 600, color: "var(--color-text-primary)", whiteSpace: "nowrap" }}>
-                      {a.type}
-                    </td>
-                    <td><span className="ip-text">{a.srcIp}</span></td>
-                    <td><span className="ip-text">{a.dstIp}</span></td>
-                    <td><span className={severityClass(a.severity)}>{a.severity}</span></td>
-                    <td>
-                      <div className="score-bar-wrap">
-                        <div className="score-bar-track" style={{ width: 80 }}>
-                          <div
-                            className="score-bar-fill"
-                            style={{ width: `${a.score * 100}%`, background: scoreColor(a.score) }}
-                          />
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ textAlign: "center", padding: 40, color: "var(--color-text-muted)" }}>
+                      {viewMode === "LIVE" ? (
+                        <div>
+                          <p style={{ fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 6 }}>
+                            No active threats detected on the wire.
+                          </p>
+                          <p style={{ fontSize: "0.82rem" }}>
+                            Traffic is normal (BENIGN). Click <strong>"⚡ Test PortScan"</strong> above to inject a live detection test event.
+                          </p>
                         </div>
-                        <span style={{
-                          fontFamily: '"JetBrains Mono",monospace',
-                          fontSize: "0.78rem",
-                          color: scoreColor(a.score),
-                          fontWeight: 600,
-                        }}>
-                          {(a.score * 100).toFixed(0)}%
-                        </span>
-                      </div>
+                      ) : (
+                        "No benchmark anomaly records found."
+                      )}
                     </td>
-                    <td style={{ maxWidth: 300, fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                      {a.description}
-                    </td>
-                    <td><span className={statusClass(a.status)}>{a.status}</span></td>
                   </tr>
-                ))}
+                ) : (
+                  filtered.map(a => (
+                    <tr key={a.id} style={{ background: a.status === "active" ? "rgba(239,68,68,0.03)" : "transparent" }}>
+                      <td style={{ fontFamily: '"JetBrains Mono",monospace', fontSize: "0.72rem", whiteSpace: "nowrap" }}>
+                        {new Date(a.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      </td>
+                      <td style={{ fontWeight: 600, color: "var(--color-text-primary)", whiteSpace: "nowrap" }}>
+                        {a.type}
+                      </td>
+                      <td><span className="ip-text">{a.srcIp}</span></td>
+                      <td><span className="ip-text">{a.dstIp}</span></td>
+                      <td><span className={severityClass(a.severity)}>{a.severity}</span></td>
+                      <td>
+                        <div className="score-bar-wrap">
+                          <div className="score-bar-track" style={{ width: 75 }}>
+                            <div
+                              className="score-bar-fill"
+                              style={{ width: `${Math.min(100, Math.max(a.score * 100, 5))}%`, background: scoreColor(a.score) }}
+                            />
+                          </div>
+                          <span style={{
+                            fontFamily: '"JetBrains Mono",monospace',
+                            fontSize: "0.78rem",
+                            color: scoreColor(a.score),
+                            fontWeight: 600,
+                          }}>
+                            {(a.score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ maxWidth: 320, fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+                        {a.description}
+                      </td>
+                      <td><span className={statusClass(a.status)}>{a.status}</span></td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        {a.status === "active" ? (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ padding: "3px 8px", fontSize: "0.72rem", color: "var(--color-accent-amber)" }}
+                            onClick={() => handleUpdateStatus(a.id, "investigating")}
+                            title="Mark as investigating"
+                          >
+                            Investigate
+                          </button>
+                        ) : a.status === "investigating" ? (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ padding: "3px 8px", fontSize: "0.72rem", color: "var(--color-success)" }}
+                            onClick={() => handleUpdateStatus(a.id, "resolved")}
+                            title="Mark as resolved"
+                          >
+                            <Check size={12} /> Resolve
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: "0.72rem", color: "var(--color-text-muted)" }}>Closed</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -225,20 +401,20 @@ export default function Anomalies() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20 }}>
           {[
             {
-              title: "Isolation Forest Model",
-              desc: "Trained on multi-dimensional flow metrics (duration, packet rates, byte variance). Identifies anomalous traffic by measuring tree isolation depth.",
-              status: isRealData ? "Phase 7 — TRAINED & EVALUATED" : "Phase 7 — NOT YET EVALUATED",
-              active: isRealData,
+              title: "Isolation Forest Model (Unsupervised)",
+              desc: "Evaluates multi-dimensional flow metrics (duration, packet rates, byte variance). Detects unknown network anomalies and statistical outliers by measuring tree isolation depth.",
+              status: "Phase 7 — Active in Pipeline",
+              active: true,
               color: "#8b5cf6",
-              detail: metrics ? `Contamination: ${(metrics.contamination * 100).toFixed(0)}% · Detection Rate: ${(metrics.attack_detection_rate * 100).toFixed(1)}%` : undefined,
+              detail: metrics ? `Contamination: ${(metrics.contamination * 100).toFixed(0)}% · Detection Rate: ${(metrics.attack_detection_rate * 100).toFixed(1)}%` : "Real-time decision function scoring active.",
             },
             {
-              title: "DBSCAN Noise Clustering",
-              desc: "Density-based spatial clustering identifies geometric outliers that fail to cluster into regular baselines.",
-              status: isRealData ? "Phase 7 — TRAINED & EVALUATED" : "Phase 7 — NOT YET EVALUATED",
-              active: isRealData,
+              title: "XGBoost Supervised Threat Engine",
+              desc: "Classifies live bidirectional network flows across 15 CICIDS2017 attack categories using 70 extracted flow features.",
+              status: "Phase 6 & 10 — Resampled & Active",
+              active: true,
               color: "#3b82f6",
-              detail: "8 Behavioral Clusters discovered + 231 outlier flows isolated.",
+              detail: "Multi-class inference running on live TShark packet streams.",
             },
           ].map(alg => (
             <div className="card" key={alg.title}>

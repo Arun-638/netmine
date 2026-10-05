@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — Database CRUD Service
 #
 # WHY A SERVICE LAYER:
@@ -106,6 +106,19 @@ def count_active_anomalies(db: Session) -> int:
     return db.query(func.count(AnomalyDB.id)).filter(AnomalyDB.status == "active").scalar() or 0
 
 
+def get_anomaly_by_id(db: Session, anomaly_id: str) -> Optional[AnomalyDB]:
+    return db.query(AnomalyDB).filter(AnomalyDB.id == anomaly_id).first()
+
+
+def update_anomaly_status(db: Session, anomaly_id: str, status: str) -> Optional[AnomalyDB]:
+    row = get_anomaly_by_id(db, anomaly_id)
+    if row:
+        row.status = status.lower()
+        db.commit()
+        db.refresh(row)
+    return row
+
+
 def create_anomaly(db: Session, anomaly: Anomaly) -> AnomalyDB:
     row = AnomalyDB(
         id=anomaly.id, timestamp=anomaly.timestamp, src_ip=anomaly.src_ip,
@@ -116,6 +129,16 @@ def create_anomaly(db: Session, anomaly: Anomaly) -> AnomalyDB:
     db.commit()
     db.refresh(row)
     return row
+
+
+def purge_stale_anomalies(db: Session) -> int:
+    deleted = db.query(AnomalyDB).filter(
+        (AnomalyDB.status == "resolved") |
+        (AnomalyDB.id.like("alert-flow-%")) |
+        (AnomalyDB.src_ip == "127.0.0.1")
+    ).delete(synchronize_session=False)
+    db.commit()
+    return deleted
 
 
 # ── Devices ────────────────────────────────────────────────────────────────────

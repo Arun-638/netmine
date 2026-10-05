@@ -83,3 +83,12 @@ capture_*.pcap
 .pytest_cache/
 htmlcov/
 .coverage
+
+# GRAPHIFY -- External analysis tool only, NOT part of the application
+graphify-out/
+.graphify_labels.json
+.graphify_python
+.graphify_root
+
+# WORKSPACE AGENTS CONFIG -- not application source code
+.agents/

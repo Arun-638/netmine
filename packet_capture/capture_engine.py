@@ -54,8 +54,10 @@ class LiveCaptureEngine:
         self._recent_pkts = 0
         self._recent_bytes = 0
 
-        # Ring buffer of recent classified flows
+        # Ring buffer of recent classified flows & anomalies
         self.recent_flows = collections.deque(maxlen=200)
+        self.recent_anomalies = collections.deque(maxlen=200)
+        self._scan_tracker = collections.defaultdict(lambda: collections.deque(maxlen=150))
         self.lock = threading.Lock()
 
         # ML Models
@@ -159,7 +161,7 @@ class LiveCaptureEngine:
         return {"status": "stopped", "total_packets": self.total_packets, "total_flows": self.total_flows}
 
     def _capture_worker(self):
-        tracker = FlowTracker(timeout_sec=4.0)
+        tracker = FlowTracker(timeout_sec=2.0)
 
         cmd = [
             "tshark", "-i", self.interface,
@@ -286,8 +288,72 @@ class LiveCaptureEngine:
             except Exception as e:
                 pass
 
-        if predicted_label != "BENIGN":
+        # ── Behavioral PortScan Correlator ──────────────────────
+        # An individual TCP SYN probe in isolation looks identical to
+        # the start of a benign handshake to a static per-flow classifier.
+        # But an IP scanning multiple distinct ports within a short window
+        # is the canonical signature of a real-world PortScan (Nmap, Zenmap, TCP sweeps).
+        now_ts = flow.last_time if flow.last_time > 0 else time.time()
+        pair_key = (flow.src_ip, flow.dst_ip)
+        q = self._scan_tracker[pair_key]
+        while q and (now_ts - q[0]["time"]) > 15.0:
+            q.popleft()
+        q.append({
+            "time": now_ts,
+            "dst_port": flow.dst_port,
+            "syn": flow.syn_cnt,
+            "rst": flow.rst_cnt,
+            "data_pkts": flow.act_data_pkt_fwd,
+        })
+        distinct_ports = {item["dst_port"] for item in q}
+        distinct_syn_probes = {item["dst_port"] for item in q if item["syn"] > 0 and item["data_pkts"] == 0}
+
+        is_portscan_detected = (
+            len(distinct_ports) >= 4 or
+            len(distinct_syn_probes) >= 3 or
+            predicted_label == "PortScan"
+        )
+        if is_portscan_detected and predicted_label == "BENIGN":
+            predicted_label = "PortScan"
+            confidence = max(confidence, 0.96)
+            anomaly_score = max(anomaly_score, 0.88)
+
+        is_threat = (predicted_label != "BENIGN") or (anomaly_score >= 0.70)
+        if is_threat:
             self.attack_count += 1
+
+            if anomaly_score >= 0.85 or predicted_label in ["DDoS", "DoS Hulk", "Heartbleed"]:
+                severity = "critical"
+            elif anomaly_score >= 0.65 or predicted_label in ["PortScan", "Bot", "Infiltration"]:
+                severity = "high"
+            elif anomaly_score >= 0.45 or "Patator" in predicted_label:
+                severity = "medium"
+            else:
+                severity = "low"
+
+            tot_b = sum(flow.fwd_pkt_lens) + sum(flow.bwd_pkt_lens)
+            tot_p = len(flow.fwd_pkt_lens) + len(flow.bwd_pkt_lens)
+            anom_desc = (
+                f"Live wire {predicted_label} threat detected from {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port} "
+                f"({flow.protocol}, {tot_b:,} bytes, {tot_p} pkts)."
+                if predicted_label != "BENIGN" else
+                f"Isolation Forest volume outlier (score: {anomaly_score:.2f}) on {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port}."
+            )
+
+            anom_record = {
+                "id": f"anom-live-{self.attack_count}",
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(flow.start_time)),
+                "src_ip": flow.src_ip,
+                "dst_ip": flow.dst_ip,
+                "type": predicted_label if predicted_label != "BENIGN" else "Isolation Forest Outlier",
+                "severity": severity,
+                "score": round(anomaly_score if anomaly_score >= 0.5 else confidence, 3),
+                "description": anom_desc,
+                "status": "active",
+                "data_source": "LIVE_CAPTURE",
+            }
+            with self.lock:
+                self.recent_anomalies.appendleft(anom_record)
 
         flow_record = {
             "id": f"flow-live-{self.total_flows}",
@@ -329,9 +395,42 @@ class LiveCaptureEngine:
         with self.lock:
             return list(self.recent_flows)[:limit]
 
+    def get_recent_anomalies(self, limit=50):
+        with self.lock:
+            return list(self.recent_anomalies)[:limit]
+
+    def add_anomaly(self, anom):
+        with self.lock:
+            self.attack_count += 1
+            if "id" not in anom:
+                anom["id"] = f"anom-live-{self.attack_count}"
+            if "timestamp" not in anom:
+                anom["timestamp"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            if "status" not in anom:
+                anom["status"] = "active"
+            if "data_source" not in anom:
+                anom["data_source"] = "LIVE_CAPTURE"
+            self.recent_anomalies.appendleft(anom)
+            return anom
+
+    def update_anomaly_status(self, anom_id, new_status):
+        with self.lock:
+            for a in self.recent_anomalies:
+                if a.get("id") == anom_id:
+                    a["status"] = new_status
+                    return True
+            return False
+
+    def clear_anomalies(self):
+        with self.lock:
+            self.recent_anomalies.clear()
+            self._scan_tracker.clear()
+
     def clear_flows(self):
         with self.lock:
             self.recent_flows.clear()
+            self.recent_anomalies.clear()
+            self._scan_tracker.clear()
             self.total_flows = 0
             self.total_packets = 0
             self.total_bytes = 0

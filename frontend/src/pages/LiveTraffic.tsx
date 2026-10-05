@@ -11,8 +11,9 @@ import Topbar from "../components/layout/Topbar";
 import TrafficChart from "../charts/TrafficChart";
 import { useSimulatedTraffic } from "../hooks/useSimulatedTraffic";
 import { mockTrafficTrend } from "../mock/data";
+import { getApiUrl } from "../services/api";
 
-const API = "http://localhost:8000";
+const API = getApiUrl();
 
 interface CaptureInterface {
   id: string;
@@ -59,7 +60,12 @@ function formatBytes(bytes: number): string {
 }
 
 function labelClass(l: string) {
-  return l === "BENIGN" ? "badge badge-benign" : "badge badge-critical";
+  if (l === "BENIGN") return "badge badge-benign";
+  if (l === "PortScan") return "badge badge-medium";
+  if (l.includes("DoS") || l === "DDoS" || l === "Heartbleed") return "badge badge-critical";
+  if (l.includes("Patator") || l.includes("Brute")) return "badge badge-high";
+  if (l === "Bot" || l.includes("Web Attack") || l === "Infiltration") return "badge badge-high";
+  return "badge badge-critical";
 }
 
 function anomalyClass(score: number) {
@@ -192,15 +198,20 @@ export default function LiveTraffic() {
   };
 
   // Flows to display based on active mode
-  const displayedFlows = engineMode === "LIVE"
-    ? liveFlows.filter(f =>
-        (filterLabel === "ALL" || f.label === filterLabel) &&
-        (filterProto === "ALL" || f.protocol.toUpperCase().includes(filterProto))
-      )
-    : sim.flows.filter(f =>
-        (filterLabel === "ALL" || f.label === filterLabel) &&
-        (filterProto === "ALL" || f.protocol === filterProto)
-      );
+  const displayedFlows = (engineMode === "LIVE" ? liveFlows : sim.flows).filter(f => {
+    const matchesLabel =
+      filterLabel === "ALL"
+        ? true
+        : filterLabel === "ATTACKS_ONLY"
+        ? f.label !== "BENIGN"
+        : f.label === filterLabel || (filterLabel === "Web Attack" && (f.label || "").startsWith("Web Attack"));
+    const protoStr = (f.protocol || "").toUpperCase();
+    const matchesProto =
+      filterProto === "ALL"
+        ? true
+        : protoStr.includes(filterProto.toUpperCase());
+    return matchesLabel && matchesProto;
+  });
 
   const isLiveRunning = captureStatus.active;
   const isRunning = engineMode === "LIVE" ? isLiveRunning : sim.isRunning;
@@ -379,10 +390,20 @@ export default function LiveTraffic() {
             <div style={{ display: "flex", gap: 10 }}>
               <select className="filter-select" value={filterLabel} onChange={e => setFilterLabel(e.target.value)}>
                 <option value="ALL">All Predictions</option>
+                <option value="ATTACKS_ONLY">⚡ All Threats (non-BENIGN)</option>
                 <option value="BENIGN">BENIGN only</option>
                 <option value="PortScan">PortScan</option>
                 <option value="DoS Hulk">DoS Hulk</option>
+                <option value="DoS GoldenEye">DoS GoldenEye</option>
+                <option value="DoS slowloris">DoS slowloris</option>
+                <option value="DoS Slowhttptest">DoS Slowhttptest</option>
                 <option value="DDoS">DDoS</option>
+                <option value="FTP-Patator">FTP-Patator</option>
+                <option value="SSH-Patator">SSH-Patator</option>
+                <option value="Bot">Bot</option>
+                <option value="Web Attack">Web Attack</option>
+                <option value="Infiltration">Infiltration</option>
+                <option value="Heartbleed">Heartbleed</option>
               </select>
               <select className="filter-select" value={filterProto} onChange={e => setFilterProto(e.target.value)}>
                 <option value="ALL">All Protocols</option>

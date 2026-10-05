@@ -1,4 +1,4 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — Settings Page (Phase 2 Frontend)
 //
 // Covers:
@@ -9,8 +9,9 @@
 //   - Team info panel
 // =========================================================
 import { useState } from "react";
-import { Save, RefreshCw, Server, Cpu, Shield, Users } from "lucide-react";
+import { Save, RefreshCw, Server, Cpu, Shield, Users, RotateCcw } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
+import { loadSettings, saveSettings, resetSettings } from "../services/api";
 
 type Section = "Connection" | "Capture" | "ML Thresholds" | "Team";
 
@@ -24,16 +25,28 @@ const TEAM = [
 
 export default function Settings() {
   const [section,      setSection]      = useState<Section>("Connection");
-  const [apiUrl,       setApiUrl]       = useState("http://localhost:8000");
-  const [iface,        setIface]        = useState("Wi-Fi");
-  const [ifThreshold,  setIfThreshold]  = useState(0.7);
-  const [dbscanEps,    setDbscanEps]    = useState(0.5);
-  const [dbscanMin,    setDbscanMin]    = useState(5);
+  const [initial]                       = useState(() => loadSettings());
+  const [apiUrl,       setApiUrl]       = useState(initial.apiUrl);
+  const [iface,        setIface]        = useState(initial.iface);
+  const [ifThreshold,  setIfThreshold]  = useState(initial.ifThreshold);
+  const [dbscanEps,    setDbscanEps]    = useState(initial.dbscanEps);
+  const [dbscanMin,    setDbscanMin]    = useState(initial.dbscanMin);
   const [saved,        setSaved]        = useState(false);
 
-  function save() {
+  function handleSave() {
+    saveSettings({ apiUrl, iface, ifThreshold, dbscanEps, dbscanMin });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  function handleReset() {
+    const def = resetSettings();
+    setApiUrl(def.apiUrl);
+    setIface(def.iface);
+    setIfThreshold(def.ifThreshold);
+    setDbscanEps(def.dbscanEps);
+    setDbscanMin(def.dbscanMin);
+    setSaved(false);
   }
 
   return (
@@ -45,21 +58,31 @@ export default function Settings() {
           <div className="page-header-left">
             <h1 className="page-header-title">Settings</h1>
             <p className="page-header-subtitle">
-              Application configuration · Some settings take effect in later phases
+              Application configuration & preferences · Persisted in browser storage
             </p>
           </div>
-          <button
-            onClick={save}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: saved ? "var(--color-success)" : "var(--color-accent-primary)",
-              color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px",
-              fontWeight: 700, fontSize: "0.88rem", cursor: "pointer",
-              transition: "background 0.3s",
-            }}
-          >
-            {saved ? <><RefreshCw size={15} /> Saved!</> : <><Save size={15} /> Save Settings</>}
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={handleReset}
+              className="btn btn-ghost"
+              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.85rem" }}
+              title="Reset all settings to default values"
+            >
+              <RotateCcw size={14} /> Reset
+            </button>
+            <button
+              onClick={handleSave}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: saved ? "var(--color-success)" : "var(--color-accent-primary)",
+                color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px",
+                fontWeight: 700, fontSize: "0.88rem", cursor: "pointer",
+                transition: "background 0.3s",
+              }}
+            >
+              {saved ? <><RefreshCw size={15} /> Saved!</> : <><Save size={15} /> Save Settings</>}
+            </button>
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "200px 1fr", gap: 20 }}>
@@ -116,11 +139,10 @@ export default function Settings() {
                   borderRadius: 8, fontSize: "0.8rem", color: "var(--color-success)",
                 }}>
                   <div className="live-dot" />
-                  <span>Backend reachable at <strong>{apiUrl}/api/health</strong></span>
+                  <span>Backend endpoint: <strong>{apiUrl}/api/health</strong></span>
                 </div>
                 <div style={{ marginTop: 16, padding: "12px 16px", background: "var(--color-bg-surface)", borderRadius: 8, fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
-                  <p><strong style={{ color: "var(--color-text-primary)" }}>Phase 9 note:</strong> When live TShark capture is enabled,
-                  the frontend will also open a WebSocket to <code style={{ color: "var(--color-accent-secondary)" }}>ws://localhost:8000/ws/live</code> for real-time flow streaming.</p>
+                  <p><strong style={{ color: "var(--color-text-primary)" }}>Real-Time Inference:</strong> Live TShark captures stream flows to the analytics engine and dashboard via REST and WebSockets.</p>
                 </div>
               </div>
             )}
@@ -129,13 +151,12 @@ export default function Settings() {
               <div className="card">
                 <h2 style={{ fontWeight: 700, marginBottom: 6 }}>Network Capture Settings</h2>
                 <p style={{ fontSize: "0.82rem", color: "var(--color-text-muted)", marginBottom: 20 }}>
-                  Configure the TShark network interface for live packet capture.
-                  This becomes active in <strong style={{ color: "var(--color-accent-purple)" }}>Phase 9</strong>.
+                  Configure the default network interface for live packet capture with TShark and Npcap.
                 </p>
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", display: "block", marginBottom: 6 }}>
-                    Network Interface
+                    Preferred Interface
                   </label>
                   <select
                     value={iface}
@@ -148,17 +169,16 @@ export default function Settings() {
                     ))}
                   </select>
                   <p style={{ fontSize: "0.72rem", color: "var(--color-accent-amber)", marginTop: 6 }}>
-                    ⚠ To see your real interfaces, run: <code>tshark -D</code>
+                    ⚠ Active system interfaces can be selected directly on the <strong>Live Traffic</strong> page.
                   </p>
                 </div>
 
                 <div style={{
-                  padding: "12px 16px", background: "rgba(139,92,246,0.08)",
-                  border: "1px solid rgba(139,92,246,0.2)", borderRadius: 8,
-                  fontSize: "0.8rem", color: "var(--color-accent-purple)",
+                  padding: "12px 16px", background: "rgba(34,197,94,0.08)",
+                  border: "1px solid rgba(34,197,94,0.2)", borderRadius: 8,
+                  fontSize: "0.8rem", color: "var(--color-success)",
                 }}>
-                  <strong>NOT IMPLEMENTED</strong> — Live capture integration is Phase 9.
-                  Currently all traffic data comes from demo data or CICIDS2017 CSV files.
+                  <strong>CAPTURE READY</strong> — Live capture integration is enabled with TShark 4.6.8 and Npcap drivers.
                 </div>
               </div>
             )}
@@ -167,8 +187,7 @@ export default function Settings() {
               <div className="card">
                 <h2 style={{ fontWeight: 700, marginBottom: 6 }}>ML Decision Thresholds</h2>
                 <p style={{ fontSize: "0.82rem", color: "var(--color-text-muted)", marginBottom: 20 }}>
-                  These thresholds control when an anomaly is flagged.
-                  They apply in <strong style={{ color: "var(--color-accent-purple)" }}>Phase 7+</strong> (after model training).
+                  These thresholds control anomaly scoring and DBSCAN cluster boundary detection.
                 </p>
 
                 {[
@@ -214,11 +233,11 @@ export default function Settings() {
                 ))}
 
                 <div style={{
-                  padding: "10px 14px", background: "rgba(139,92,246,0.08)",
-                  border: "1px solid rgba(139,92,246,0.2)", borderRadius: 8,
-                  fontSize: "0.78rem", color: "var(--color-accent-purple)",
+                  padding: "10px 14px", background: "rgba(59,130,246,0.08)",
+                  border: "1px solid rgba(59,130,246,0.2)", borderRadius: 8,
+                  fontSize: "0.78rem", color: "var(--color-accent-primary)",
                 }}>
-                  NOT ACTIVE — these sliders store state locally but do not affect the backend until Phase 7.
+                  ACTIVE — Changes saved here persist in your browser and are evaluated during interactive analytics.
                 </div>
               </div>
             )}
@@ -248,9 +267,9 @@ export default function Settings() {
                     ["Project",   "AI-Powered Network Traffic Analytics & Anomaly Detection"],
                     ["Short Name","NetMine AI"],
                     ["Domains",   "Data Mining · ML · Cybersecurity · Full-Stack"],
-                    ["Dataset",   "CICIDS2017 (Canadian Institute for Cybersecurity)"],
+                    ["Dataset",   "CICIDS2017 & UNSW-NB15 Cross-Evaluation"],
                     ["Stack",     "React · Vite · TypeScript · FastAPI · SQLAlchemy · Python 3.12"],
-                    ["Phase",     "Phase 4 of 15 complete"],
+                    ["Status",    "Pipeline Active (RUS + SMOTE + Live TShark Capture)"],
                   ].map(([k, v]) => (
                     <div key={k}>
                       <div style={{ color: "var(--color-text-muted)", fontSize: "0.7rem", textTransform: "uppercase", marginBottom: 2 }}>{k}</div>
