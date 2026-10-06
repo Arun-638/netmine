@@ -1,22 +1,17 @@
 // =========================================================
 // NetMine AI — Dashboard Page
-// Real API integration with SQLite DB & fallback to demo data
+// 100% Live Data — no mock or demo data
 // =========================================================
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import {
   Activity, AlertTriangle, Monitor,
-  Wifi, Package, Database, Heart, RefreshCw,
+  Wifi, Package, Database, Heart, RefreshCw, Zap,
+  ArrowRight, ShieldAlert,
 } from "lucide-react";
 import MetricCard from "../components/ui/MetricCard";
 import TrafficChart from "../charts/TrafficChart";
 import ProtocolChart from "../charts/ProtocolChart";
-import {
-  mockMetricCards,
-  mockTrafficTrend,
-  mockProtocols,
-  mockAnomalies,
-  mockFlows,
-} from "../mock/data";
 import { getApiUrl } from "../services/api";
 import type { MetricCardData, Anomaly, TrafficFlow, ProtocolStat, TrafficTrendPoint } from "../types";
 
@@ -66,14 +61,15 @@ function formatBytes(bytes: number): string {
 }
 
 export default function Dashboard() {
-  const [metrics, setMetrics] = useState<MetricCardData[]>(mockMetricCards);
-  const [trafficTrend, setTrafficTrend] = useState<TrafficTrendPoint[]>(mockTrafficTrend);
-  const [protocols, setProtocols] = useState<ProtocolStat[]>(mockProtocols);
-  const [anomalies, setAnomalies] = useState<Anomaly[]>(mockAnomalies);
-  const [flows, setFlows] = useState<TrafficFlow[]>(mockFlows);
-  const [dataSource, setDataSource] = useState<string>("DEMO");
+  const [metrics, setMetrics] = useState<MetricCardData[]>([]);
+  const [trafficTrend, setTrafficTrend] = useState<TrafficTrendPoint[]>([]);
+  const [protocols, setProtocols] = useState<ProtocolStat[]>([]);
+  const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
+  const [flows, setFlows] = useState<TrafficFlow[]>([]);
+  const [dataSource, setDataSource] = useState<string>("IDLE");
   const [isLive, setIsLive] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [bottomTab, setBottomTab] = useState<"flows" | "anomalies">("flows");
 
   const api = getApiUrl();
 
@@ -87,7 +83,14 @@ export default function Dashboard() {
           setMetrics(d.metrics);
         }
         if (d.traffic_trend && Array.isArray(d.traffic_trend)) {
-          setTrafficTrend(d.traffic_trend);
+          setTrafficTrend(
+            d.traffic_trend.map((pt: any) => ({
+              time: pt.time,
+              packetsPerSec: pt.packets_per_sec ?? pt.packetsPerSec ?? pt.packets ?? 0,
+              bytesPerSec: pt.bytes_per_sec ?? pt.bytesPerSec ?? pt.bytes ?? 0,
+              anomalies: pt.anomalies ?? 0,
+            }))
+          );
         }
         if (d.protocol_distribution && Array.isArray(d.protocol_distribution)) {
           setProtocols(d.protocol_distribution.map((p: any) => ({
@@ -97,12 +100,12 @@ export default function Dashboard() {
             percentage: p.percentage ?? 0,
           })));
         }
-        setDataSource(d.data_source ?? "LIVE_DB");
-        setIsLive(true);
+        setDataSource(d.data_source ?? "IDLE");
+        setIsLive(d.data_source === "LIVE_CAPTURE" || d.data_source === "RECENT_CACHE");
       }
 
-      // 2. Anomalies table
-      const anomRes = await fetch(`${api}/api/anomalies`);
+      // 2. Anomalies — live source only
+      const anomRes = await fetch(`${api}/api/anomalies?source=live`);
       if (anomRes.ok) {
         const a = await anomRes.json();
         if (a.anomalies && Array.isArray(a.anomalies)) {
@@ -120,8 +123,8 @@ export default function Dashboard() {
         }
       }
 
-      // 3. Traffic flows table
-      const flowRes = await fetch(`${api}/api/traffic/flows?limit=6`);
+      // 3. Traffic flows — live capture engine
+      const flowRes = await fetch(`${api}/api/capture/flows?limit=10`);
       if (flowRes.ok) {
         const f = await flowRes.json();
         if (f.flows && Array.isArray(f.flows)) {
@@ -144,15 +147,14 @@ export default function Dashboard() {
 
       setLastUpdated(new Date());
     } catch {
-      // Offline fallback: keep mock data
       setIsLive(false);
-      setDataSource("DEMO (Backend Offline)");
+      setDataSource("OFFLINE");
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 8000);
+    const interval = setInterval(fetchDashboardData, 2500);
     return () => clearInterval(interval);
   }, [api]);
 
@@ -170,7 +172,7 @@ export default function Dashboard() {
             </span>
           ) : (
             <span className="badge badge-investigating">
-              {dataSource}
+              {dataSource === "OFFLINE" ? "Backend Offline" : dataSource}
             </span>
           )}
         </div>
@@ -181,128 +183,351 @@ export default function Dashboard() {
       </div>
 
       {/* Metric cards */}
-      <div className="metrics-grid">
-        {metrics.map((card) => {
-          const meta = metricIcons[card.id] ?? { icon: <Wifi size={16} />, color: "#3b82f6" };
-          return (
-            <MetricCard
-              key={card.id}
-              {...card}
-              icon={meta.icon}
-              color={meta.color}
-            />
-          );
-        })}
-      </div>
+      {metrics.length === 0 ? (
+        <div style={{
+          textAlign: "center", padding: "40px 20px",
+          color: "var(--color-text-muted)", fontSize: "0.9rem",
+          background: "var(--color-bg-card)", borderRadius: "var(--radius-lg)",
+          border: "1px dashed var(--color-border)", marginBottom: 20,
+        }}>
+          <Zap size={32} style={{ marginBottom: 12, color: "var(--color-accent)" }} />
+          <div><strong style={{ color: "var(--color-text-primary)" }}>No live data yet</strong></div>
+          <div style={{ marginTop: 6 }}>Start packet capture on the Live Traffic page to see real-time metrics here.</div>
+        </div>
+      ) : (
+        <div className="metrics-grid">
+          {metrics.map((card) => {
+            const meta = metricIcons[card.id] ?? { icon: <Wifi size={16} />, color: "#3b82f6" };
+            return (
+              <MetricCard
+                key={card.id}
+                {...card}
+                icon={meta.icon}
+                color={meta.color}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {/* Traffic trend + Protocol distribution */}
       <div className="grid-3">
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Traffic Trend (24h)</span>
-            <span className={isLive ? "badge badge-active" : "demo-badge"}>
-              {isLive ? "DB Aggregate" : "Demo Data"}
+            <span className="card-title">Traffic Trend</span>
+            <span className={isLive ? "badge badge-active" : "badge badge-investigating"}>
+              {isLive ? "Live" : "Idle"}
             </span>
           </div>
           <div className="chart-wrapper-lg">
-            <TrafficChart data={trafficTrend} />
+            {trafficTrend.length > 0
+              ? <TrafficChart data={trafficTrend} />
+              : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", fontSize: "0.82rem" }}>No traffic data — start capture</div>
+            }
           </div>
         </div>
 
         <div className="card">
           <div className="card-header">
             <span className="card-title">Protocol Distribution</span>
-            <span className={isLive ? "badge badge-active" : "demo-badge"}>
-              {isLive ? "DB Aggregate" : "Demo Data"}
+            <span className={isLive ? "badge badge-active" : "badge badge-investigating"}>
+              {isLive ? "Live" : "Idle"}
             </span>
           </div>
           <div className="chart-wrapper-lg">
-            <ProtocolChart data={protocols} />
+            {protocols.length > 0
+              ? <ProtocolChart data={protocols} />
+              : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", fontSize: "0.82rem" }}>No protocol data — start capture</div>
+            }
           </div>
         </div>
       </div>
 
-      {/* Recent anomalies + Recent flows */}
-      <div className="grid-2">
-        {/* Anomalies */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Recent Anomalies</span>
-            <span className="badge badge-active" style={{ fontSize: "0.68rem" }}>
-              {anomalies.filter((a) => a.status === "active").length} active
+      {/* Security Threat Alert (Visible if active threats exist) */}
+      {anomalies.filter((a) => a.status === "active").length > 0 && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 18px",
+          background: "rgba(239, 68, 68, 0.12)",
+          border: "1px solid rgba(239, 68, 68, 0.35)",
+          borderRadius: "var(--radius-md)",
+          marginBottom: 16,
+          gap: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <AlertTriangle size={18} color="var(--color-danger)" />
+            <span style={{ fontSize: "0.85rem", color: "var(--color-text-primary)", fontWeight: 500 }}>
+              <strong style={{ color: "var(--color-danger)" }}>Active Security Threat:</strong>{" "}
+              {anomalies.filter((a) => a.status === "active").length} anomalous event(s) detected.
             </span>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Source IP</th>
-                  <th>Severity</th>
-                  <th>Score</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {anomalies.slice(0, 5).map((a) => (
-                  <tr key={a.id}>
-                    <td style={{ color: "var(--color-text-primary)", fontWeight: 500 }}>{a.type}</td>
-                    <td><span className="ip-text">{a.srcIp}</span></td>
-                    <td><span className={severityClass(a.severity)}>{a.severity}</span></td>
-                    <td>
-                      <span style={{ color: a.score > 0.8 ? "var(--color-danger)" : "var(--color-warning)" }}>
-                        {(a.score * 100).toFixed(0)}%
-                      </span>
-                    </td>
-                    <td><span className={statusClass(a.status)}>{a.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <button
+            className="btn btn-danger"
+            style={{ fontSize: "0.75rem", padding: "4px 12px" }}
+            onClick={() => setBottomTab("anomalies")}
+          >
+            Review Threats
+          </button>
+        </div>
+      )}
+
+      {/* Full-width Live Traffic Stream & Anomalies Card */}
+      <div className="card" style={{ width: "100%" }}>
+        <div className="card-header" style={{ flexWrap: "wrap", gap: 12 }}>
+          {/* Tabs */}
+          <div className="table-tabs">
+            <button
+              className={`table-tab-btn ${bottomTab === "flows" ? "active" : ""}`}
+              onClick={() => setBottomTab("flows")}
+            >
+              <Activity size={14} />
+              <span>Recent Traffic Flows</span>
+              <span style={{
+                fontSize: "0.7rem",
+                padding: "1px 6px",
+                borderRadius: 10,
+                background: bottomTab === "flows" ? "rgba(59, 130, 246, 0.25)" : "rgba(255, 255, 255, 0.06)",
+                color: bottomTab === "flows" ? "var(--color-accent-primary)" : "var(--color-text-muted)",
+              }}>
+                {flows.length}
+              </span>
+            </button>
+
+            <button
+              className={`table-tab-btn ${bottomTab === "anomalies" ? "active" : ""}`}
+              onClick={() => setBottomTab("anomalies")}
+            >
+              <AlertTriangle size={14} />
+              <span>Security Anomalies</span>
+              {anomalies.filter((a) => a.status === "active").length > 0 ? (
+                <span style={{
+                  fontSize: "0.7rem",
+                  padding: "1px 6px",
+                  borderRadius: 10,
+                  background: "rgba(239, 68, 68, 0.25)",
+                  color: "var(--color-danger)",
+                  fontWeight: 700,
+                }}>
+                  {anomalies.filter((a) => a.status === "active").length} active
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: "0.7rem",
+                  padding: "1px 6px",
+                  borderRadius: 10,
+                  background: "rgba(255, 255, 255, 0.06)",
+                  color: "var(--color-text-muted)",
+                }}>
+                  {anomalies.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Quick link & status */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className={isLive ? "badge badge-active" : "badge badge-investigating"} style={{ fontSize: "0.68rem" }}>
+              {isLive ? "Live Stream" : "Engine Idle"}
+            </span>
+            {bottomTab === "flows" ? (
+              <Link
+                to="/live"
+                className="btn btn-ghost"
+                style={{ fontSize: "0.78rem", padding: "4px 8px", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                Full Live Stream <ArrowRight size={13} />
+              </Link>
+            ) : (
+              <Link
+                to="/anomalies"
+                className="btn btn-ghost"
+                style={{ fontSize: "0.78rem", padding: "4px 8px", display: "inline-flex", alignItems: "center", gap: 4 }}
+              >
+                All Anomalies <ArrowRight size={13} />
+              </Link>
+            )}
           </div>
         </div>
 
-        {/* Recent Flows */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Recent Traffic Flows</span>
-            <span className={isLive ? "badge badge-active" : "demo-badge"} style={{ fontSize: "0.68rem" }}>
-              {isLive ? "Real Flows" : "Demo Data"}
-            </span>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Src IP</th>
-                  <th>Dst IP</th>
-                  <th>Proto</th>
-                  <th>Bytes</th>
-                  <th>Label</th>
-                </tr>
-              </thead>
-              <tbody>
-                {flows.slice(0, 6).map((f) => (
-                  <tr key={f.id}>
-                    <td><span className="ip-text">{f.srcIp}</span></td>
-                    <td><span className="ip-text">{f.dstIp}</span></td>
-                    <td>
-                      <span style={{
-                        fontFamily: '"JetBrains Mono", monospace',
-                        fontSize: "0.78rem",
-                        color: "var(--color-accent-secondary)",
-                      }}>
-                        {f.protocol}
-                      </span>
-                    </td>
-                    <td>{formatBytes(f.bytes)}</td>
-                    <td><span className={labelClass(f.label)}>{f.label}</span></td>
+        {/* Tab 1: Live Traffic Flows */}
+        {bottomTab === "flows" && (
+          <div style={{ width: "100%", overflowX: "auto" }}>
+            {flows.length === 0 ? (
+              <div style={{ padding: "36px 20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                <Activity size={28} style={{ opacity: 0.4, marginBottom: 8 }} />
+                <div>No traffic flows recorded yet</div>
+                <div style={{ fontSize: "0.75rem", marginTop: 4 }}>
+                  Packets captured by the engine stream here automatically in real time.
+                </div>
+              </div>
+            ) : (
+              <table className="data-table" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Source</th>
+                    <th>Destination</th>
+                    <th>Proto</th>
+                    <th>Packets</th>
+                    <th>Volume</th>
+                    <th>Duration</th>
+                    <th>ML Classification</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {flows.slice(0, 10).map((f) => (
+                    <tr key={f.id}>
+                      <td style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "0.75rem",
+                        color: "var(--color-text-muted)",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {f.timestamp ? new Date(f.timestamp).toLocaleTimeString() : "--:--:--"}
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <span className="ip-text" title={f.srcIp}>{f.srcIp}</span>
+                        {f.srcPort && <span className="port-pill">:{f.srcPort}</span>}
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <span className="ip-text" title={f.dstIp}>{f.dstIp}</span>
+                        {f.dstPort && <span className="port-pill">:{f.dstPort}</span>}
+                      </td>
+                      <td>
+                        <span className={`protocol-chip protocol-chip-${
+                          (f.protocol || "").toLowerCase() === "tcp"
+                            ? "tcp"
+                            : (f.protocol || "").toLowerCase() === "udp"
+                            ? "udp"
+                            : (f.protocol || "").toLowerCase() === "icmp"
+                            ? "icmp"
+                            : (f.protocol || "").toLowerCase() === "dns"
+                            ? "dns"
+                            : "other"
+                        }`}>
+                          {f.protocol || "OTHER"}
+                        </span>
+                      </td>
+                      <td style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "0.8rem",
+                        color: "var(--color-text-primary)",
+                      }}>
+                        {(f.packets || 1).toLocaleString()}
+                      </td>
+                      <td style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "0.8rem",
+                        color: "var(--color-text-primary)",
+                      }}>
+                        {formatBytes(f.bytes)}
+                      </td>
+                      <td style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "0.75rem",
+                        color: "var(--color-text-muted)",
+                      }}>
+                        {f.duration ? `${f.duration.toFixed(2)}s` : "< 0.01s"}
+                      </td>
+                      <td>
+                        <span className={labelClass(f.label)}>
+                          {f.label}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Tab 2: Security Anomalies */}
+        {bottomTab === "anomalies" && (
+          <div style={{ width: "100%", overflowX: "auto" }}>
+            {anomalies.length === 0 ? (
+              <div style={{ padding: "36px 20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                <ShieldAlert size={28} style={{ opacity: 0.4, marginBottom: 8, color: "var(--color-success)" }} />
+                <div style={{ color: "var(--color-success)", fontWeight: 600 }}>No anomalies detected — all clear</div>
+                <div style={{ fontSize: "0.75rem", marginTop: 4 }}>
+                  The AI anomaly detector is monitoring all inbound and outbound network flows.
+                </div>
+              </div>
+            ) : (
+              <table className="data-table" style={{ width: "100%" }}>
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Threat / Type</th>
+                    <th>Source IP</th>
+                    <th>Destination IP</th>
+                    <th>Severity</th>
+                    <th>Anomaly Score</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {anomalies.slice(0, 10).map((a) => (
+                    <tr key={a.id}>
+                      <td style={{
+                        fontFamily: '"JetBrains Mono", monospace',
+                        fontSize: "0.75rem",
+                        color: "var(--color-text-muted)",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {a.timestamp ? new Date(a.timestamp).toLocaleTimeString() : "--:--:--"}
+                      </td>
+                      <td style={{ color: "var(--color-text-primary)", fontWeight: 600 }}>
+                        {a.type}
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <span className="ip-text" title={a.srcIp}>{a.srcIp}</span>
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <span className="ip-text" title={a.dstIp}>{a.dstIp || "—"}</span>
+                      </td>
+                      <td><span className={severityClass(a.severity)}>{a.severity}</span></td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <div style={{
+                            width: 50,
+                            height: 6,
+                            borderRadius: 3,
+                            background: "rgba(255, 255, 255, 0.1)",
+                            overflow: "hidden",
+                          }}>
+                            <div style={{
+                              width: `${Math.min(100, a.score * 100)}%`,
+                              height: "100%",
+                              background: a.score > 0.8 ? "var(--color-danger)" : "var(--color-warning)",
+                            }} />
+                          </div>
+                          <span style={{
+                            fontFamily: '"JetBrains Mono", monospace',
+                            fontSize: "0.75rem",
+                            color: a.score > 0.8 ? "var(--color-danger)" : "var(--color-warning)",
+                            fontWeight: 600,
+                          }}>
+                            {(a.score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </td>
+                      <td><span className={statusClass(a.status)}>{a.status}</span></td>
+                      <td>
+                        <Link to="/anomalies" className="btn btn-ghost" style={{ fontSize: "0.72rem", padding: "3px 8px" }}>
+                          Details
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

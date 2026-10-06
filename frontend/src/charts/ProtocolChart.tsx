@@ -1,7 +1,7 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — Protocol Distribution Pie Chart
 // Uses: Recharts PieChart
-// Data source: DEMO (mock/data.ts)
+// Data source: Live Capture Engine Protocol Distribution
 // =========================================================
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,

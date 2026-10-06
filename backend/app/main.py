@@ -51,13 +51,8 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     print("[NetMine] SQLite tables created (or already exist)")
 
-    # ── Seed demo data ────────────────────────────────────
-    with SessionLocal() as db:
-        result = seed_demo_data(db)
-        print(f"[NetMine] Seed result: {result['status']} — "
-              f"flows={result.get('flows_inserted', 0)} "
-              f"anomalies={result.get('anomalies_inserted', 0)} "
-              f"devices={result.get('devices_inserted', 0)}")
+    # ── Live-only Mode ────────────────────────────────────
+    print("[NetMine] Running in 100% Live Capture Mode — no demo data seeded")
 
     yield  # ← server is live here
 

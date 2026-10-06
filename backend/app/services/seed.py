@@ -39,12 +39,8 @@ def is_seeded(db: Session) -> bool:
 
 
 def seed_demo_data(db: Session) -> dict:
-    """
-    Populate the database with demo data from mock_data.py.
-    Returns a summary of what was inserted.
-    """
-    if is_seeded(db):
-        return {"status": "already_seeded", "message": "Database already contains data, skipping seed."}
+    """Demo seeding disabled — NetMine AI operates in 100% Live Capture mode."""
+    return {"status": "disabled", "message": "Demo data seeding has been removed in favor of live capture data."}
 
     flows_inserted = 0
     for flow in DEMO_FLOWS:

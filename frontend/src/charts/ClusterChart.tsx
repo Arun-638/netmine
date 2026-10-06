@@ -1,4 +1,4 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — ClusterChart
 // Visualizes DBSCAN cluster output as a scatter plot.
 //
@@ -47,9 +47,6 @@ const CustomTooltip = ({ active, payload }: any) => {
         </p>
         <p style={{ color: "var(--color-text-secondary)" }}>
           Bytes: <strong>{Math.round(d.y).toLocaleString()}</strong>
-        </p>
-        <p style={{ color: "var(--color-text-muted)", marginTop: 4, fontSize: "0.72rem" }}>
-          ⚠ DEMO DATA — not real DBSCAN output
         </p>
       </div>
     );

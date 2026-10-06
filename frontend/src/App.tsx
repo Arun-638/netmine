@@ -25,7 +25,7 @@ export default function App() {
             path="/"
             element={
               <>
-                <Topbar title="Dashboard" subtitle="Network overview — DEMO MODE" />
+                <Topbar title="Dashboard" subtitle="Live network overview & anomaly monitoring" />
                 <div className="page-content">
                   <Dashboard />
                 </div>

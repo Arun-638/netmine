@@ -1,261 +1,203 @@
 # NetMine AI — AI-Powered Network Traffic Analytics & Anomaly Detection Platform
 
-**Team:** Arun A Raj · Adithyan H · Vaishnav Prakash
-
-**Domains:** Data Mining · Machine Learning · Cybersecurity · Network Traffic Analytics · Full-Stack Development
-
----
-
-## ⚠️ Project Status
-
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase 0 | Environment Validation | ✅ Done |
-| Phase 1 | React + Vite Frontend Foundation | ✅ Done |
-| Phase 2 | Frontend Analytics UI | ✅ Done |
-| Phase 3 | FastAPI Backend Foundation | ✅ Done |
-| Phase 4 | Database Integration | ✅ Done |
-| Phase 5 | CICIDS2017 Exploration | ✅ Done |
-| Phase 6 | ML Training Pipeline (CICIDS2017) | ✅ Done |
-| Phase 7 | Data Mining & Anomaly Detection (DBSCAN + Apriori + IsoForest) | ✅ Done |
-| Phase 8 | UNSW-NB15 Benchmark & Cross-Dataset Evaluation | ✅ Done |
-| Phase 9 | Real-Time Packet Capture & Flow Engine (TShark + Live ML) | ✅ Done |
-| Phase 10 | Live Alerting, Database Logging & System Telemetry | 🔜 Next |
-| Phase 11–15 | Automated Reporting, End-to-End Testing & VIVA Defense | 🔜 |
+**Team:** Arun A Raj · Adithyan H · Vaishnav Prakash  
+**Domains:** Data Mining · Machine Learning · Cybersecurity · Network Traffic Analytics · Full-Stack Web Development  
 
 ---
 
-## Architecture
+## 📌 Project Overview
+
+**NetMine AI** is an enterprise-grade, real-time network traffic analytics and anomaly detection system. It captures live network packets, extracts bi-directional network flow features (conforming to CICIDS2017 specifications), performs real-time Machine Learning and Data Mining inference, and visualizes network health, active devices, protocol distribution, and detected security threats on a sleek, responsive dashboard.
 
 ```
-React + Vite (TypeScript)
-        │
-        │  REST API / WebSocket
-        ▼
-    FastAPI (Python)
-        │
-        ├── Machine Learning (Decision Tree, Random Forest, XGBoost)
-        ├── Data Mining (DBSCAN, Isolation Forest, Apriori)
-        ├── Packet Capture (TShark / Npcap / PyShark)
-        └── Database (SQLite → PostgreSQL)
+                              ┌───────────────────────────────────────────────┐
+                              │            Live Network Interface             │
+                              │          (Wi-Fi / Ethernet Adapter)           │
+                              └──────────────────────┬────────────────────────┘
+                                                     │ Live Packets (TShark / Npcap)
+                                                     ▼
+                              ┌───────────────────────────────────────────────┐
+                              │          NetMine Packet Capture Engine        │
+                              │    (Flow Aggregation & Feature Extraction)    │
+                              └──────────────────────┬────────────────────────┘
+                                                     │ 78-Dimensional Flow Vectors
+                                                     ▼
+                              ┌───────────────────────────────────────────────┐
+                              │           FastAPI Analytics Backend           │
+                              │   ├── Machine Learning (Random Forest / XGB)  │
+                              │   ├── Data Mining (DBSCAN + Isolation Forest) │
+                              │   ├── Device Discovery (ARP + MAC resolution) │
+                              │   └── SQLAlchemy SQLite / Telemetry Store     │
+                              └──────────────────────┬────────────────────────┘
+                                                     │ REST API & Real-Time Sync
+                                                     ▼
+                              ┌───────────────────────────────────────────────┐
+                              │            React 19 + Vite Frontend           │
+                              │   ├── Collapsible Responsive Navigation       │
+                              │   ├── Real-Time Dashboard (Zero Horizontal    │
+                              │   │   Scroll, Tabbed Flows & Threat Alerts)   │
+                              │   ├── Live Traffic Monitor & Packet Inspector │
+                              │   ├── Device Discovery & Protocol Analytics   │
+                              │   └── Data Mining & ML Performance Analytics  │
+                              └───────────────────────────────────────────────┘
 ```
 
 ---
 
-## Requirements
+## 🚀 Key Features
+
+- **Real-Time Packet Capture**: Multi-threaded packet sniffer leveraging TShark/Npcap with socket-level fallback, continuously aggregating packets into conversational network flows.
+- **Live Threat Classification**: Automated feature engineering extracting 78 CICIDS2017-compliant attributes with real-time ML inference (Random Forest, Decision Tree, XGBoost) classifying flows as `BENIGN`, `PortScan`, `DDoS`, `DoS`, or `Botnet`.
+- **Unsupervised Anomaly Detection & Clustering**: Unsupervised DBSCAN clustering and Isolation Forest detecting zero-day anomalies and outliers.
+- **Association Rule Mining**: Apriori algorithm discovering frequent co-occurring protocol, port, and threat patterns.
+- **Active Device Discovery**: Automatically scans and monitors active LAN devices (`/api/devices`), resolving IP addresses, MAC vendors, and activity states.
+- **Protocol Analytics**: Real-time traffic breakdown across TCP, UDP, ICMP, DNS, HTTP, and TLS protocols.
+- **Enterprise-Grade UI**:
+  - Full-width streaming live traffic table with smart IP truncation, eliminating annoying horizontal rightward scrolling.
+  - Interactive tabs switching seamlessly between **Recent Traffic Flows** and **Security Anomalies**.
+  - Collapsible sidebar with top-left toggle button and `Ctrl+B` keyboard shortcut.
+  - Live throughput trend graph with rolling history buffer.
+  - High-priority security threat alerts displayed instantly upon intrusion detection.
+
+---
+
+## 🛠️ System Requirements
 
 ### Hardware
-- Windows 10/11 (64-bit)
-- Minimum 8 GB RAM (16 GB recommended for CICIDS2017)
-- Minimum 15 GB free disk space for datasets
+- **Operating System:** Windows 10/11 (64-bit) or Linux
+- **RAM:** Minimum 8 GB (16 GB recommended for model training)
+- **Processor:** Multi-core x86_64 CPU
 
 ### Software
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Python | 3.9+ | Backend + ML + Data Mining |
-| Node.js | 18+ | Frontend build |
-| npm | 8+ | Package management |
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| Python | 3.9+ | Backend, ML inference, and packet engine |
+| Node.js | 18+ | Frontend runtime |
+| npm | 8+ | Frontend package manager |
+| Wireshark / TShark | 4.x+ | Packet capture engine |
+| Npcap | Latest | Windows raw packet capture driver |
 | Git | Any | Version control |
-| Wireshark / TShark | 4.x | Packet capture |
-| Npcap | Latest | Windows packet capture driver |
 
 ---
 
-## Installation
+## ⚡ Quick Start
 
-### Step 1 — Clone the repository
+### 1. Clone Repository
 ```bash
 git clone https://github.com/Arun-638/netmine.git
 cd netmine
 ```
 
-### Step 2 — Validate your environment
+### 2. Python Environment Setup
 ```bash
-python scripts/check_environment.py
-```
-Fix any CRITICAL FAILURES before proceeding.
-
-### Step 3 — Install Python dependencies
-```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### Step 4 — Install frontend dependencies
+### 3. Frontend Setup
 ```bash
 cd frontend
 npm install
 cd ..
 ```
 
-### Step 5 — Place datasets (see Dataset Setup below)
+### 4. Running the Application
+
+You can start both services using the provided PowerShell scripts:
+
+#### Terminal 1 — Start Backend Engine
+```powershell
+.\start_backend.ps1
+```
+> Starts FastAPI on **http://localhost:8000** with interactive Swagger API docs at **http://localhost:8000/docs**.
+
+#### Terminal 2 — Start Frontend Dashboard
+```powershell
+.\start_frontend.ps1
+```
+> Starts the Vite development server on **http://localhost:5173** with automatic `/api` proxying to port 8000.
 
 ---
 
-## Dataset Setup
+## 📡 Core API Endpoints
 
-### CICIDS2017
-
-1. Download from: https://www.unb.ca/cic/datasets/ids-2017.html
-   (Look for: "Machine Learning CSV Files")
-2. Extract and place the CSV files in:
-   ```
-   data/raw/CICIDS2017/
-   ```
-3. Do NOT rename the original files.
-4. Expected files:
-   - Monday-WorkingHours.pcap_ISCX.csv
-   - Tuesday-WorkingHours.pcap_ISCX.csv
-   - Wednesday-workingHours.pcap_ISCX.csv
-   - Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv
-   - Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv
-   - Friday-WorkingHours-Morning.pcap_ISCX.csv
-   - Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv
-   - Friday-WorkingHours-Afternoon-DDoS.pcap_ISCX.csv
-
-5. Verify:
-   ```bash
-   python scripts/check_environment.py
-   ```
-
-> ⚠️ **IMPORTANT:** Raw datasets are in .gitignore and will NEVER be committed to Git.
-
-### UNSW-NB15
-
-To be used in Phase 8. Place in: `data/raw/UNSW-NB15/`
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | `GET` | Health check and engine telemetry |
+| `/api/dashboard` | `GET` | Aggregated metrics, traffic trends, and protocol distribution |
+| `/api/capture/start` | `POST` | Starts real-time live packet capture on active network adapter |
+| `/api/capture/stop` | `POST` | Stops packet capture engine |
+| `/api/capture/status` | `GET` | Current capture engine state and total captured packets |
+| `/api/capture/flows` | `GET` | Real-time classified flows with ML predictions |
+| `/api/devices` | `GET` | Live discovered network devices and status |
+| `/api/traffic/statistics` | `GET` | Detailed protocol throughput and volume breakdowns |
+| `/api/anomalies` | `GET` | Filterable log of detected security anomalies and threat scores |
+| `/api/ml/metrics` | `GET` | Model training evaluation (Accuracy, Precision, Recall, F1) |
 
 ---
 
-## Folder Structure
+## 📂 Project Architecture
 
 ```
 netmine/
-├── frontend/                    # React + Vite + TypeScript
+├── backend/
+│   └── app/
+│       ├── main.py                  # FastAPI application entry & router registration
+│       ├── api/
+│       │   ├── dashboard.py         # Summary metrics & rolling traffic trend
+│       │   ├── devices.py           # Device discovery & MAC resolution
+│       │   ├── traffic.py           # Protocol stats & capture engine control
+│       │   ├── anomalies.py         # Security anomaly reporting
+│       │   └── ml.py                # Machine learning endpoints
+│       ├── core/                    # Application configuration & security
+│       ├── database/                # SQLAlchemy database connection & session
+│       ├── models/                  # Database entity models
+│       └── services/                # Device scanner, telemetry, and seeders
+│
+├── frontend/
 │   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   ├── pages/               # Route pages
-│   │   ├── layouts/             # Layout wrappers
-│   │   ├── charts/              # Recharts chart components
-│   │   ├── mock/                # DEMO data (clearly labelled)
-│   │   ├── types/               # TypeScript interfaces
-│   │   └── services/            # API clients (Phase 3+)
+│   │   ├── components/layout/       # Sidebar, Topbar, and navigation components
+│   │   ├── context/
+│   │   │   └── SidebarContext.tsx   # Collapsible sidebar state & Ctrl+B shortcut
+│   │   ├── pages/
+│   │   │   ├── Dashboard.tsx        # Live overview with responsive flows & alerts
+│   │   │   ├── LiveTraffic.tsx      # Real-time traffic stream & packet sniffer controls
+│   │   │   ├── Anomalies.tsx        # Security threat analysis & investigation
+│   │   │   ├── Devices.tsx          # Live network device inventory
+│   │   │   ├── Protocols.tsx        # In-depth protocol analytics
+│   │   │   ├── KnowledgeDiscovery.tsx # DBSCAN clusters & Apriori association rules
+│   │   │   ├── MLAnalytics.tsx      # Supervised classification metrics & confusion matrix
+│   │   │   └── Reports.tsx          # Exportable network security reports
+│   │   ├── charts/                  # Recharts visualization modules
+│   │   └── services/api.ts          # Unified API client & endpoint resolver
+│   ├── vite.config.ts               # Vite proxy configuration
 │   └── package.json
 │
-├── backend/                     # FastAPI (Phase 3+)
-│   └── app/
-│       ├── main.py
-│       ├── api/
-│       ├── services/
-│       ├── schemas/
-│       ├── database/
-│       └── core/
+├── packet_capture/
+│   └── capture_engine.py            # Live TShark/raw socket capture, flow builder & ML classifier
 │
-├── ml/                          # ML training scripts (Phase 6+)
-├── data_mining/                 # Data mining scripts (Phase 7+)
-├── packet_capture/              # TShark / flow scripts (Phase 9+)
-│
-├── data/
-│   ├── raw/CICIDS2017/          # ← place your CSVs here
-│   ├── raw/UNSW-NB15/           # ← phase 8
-│   ├── processed/               # cleaned/engineered datasets
-│   ├── sample/                  # small dev samples
-│   └── metadata/                # dataset descriptions
-│
-├── models/                      # serialized ML models
-├── notebooks/                   # Jupyter exploration notebooks
-├── scripts/                     # utility scripts
-│   └── check_environment.py     # Phase 0 validator
-├── tests/                       # Pytest tests
-├── docs/                        # documentation
-├── requirements.txt
-└── README.md
+├── ml/                              # Supervised model training scripts (CICIDS2017)
+├── data_mining/                     # DBSCAN, Isolation Forest, and Apriori pipelines
+├── models/                          # Serialized trained model weights (.joblib / .pkl)
+├── scripts/                         # Verification & utility scripts
+├── start_backend.ps1                # Automated backend launcher
+└── start_frontend.ps1               # Automated frontend launcher
 ```
 
 ---
 
-## Running the Frontend (Phase 1)
+## 🎓 Academic Demonstration & Defense
 
-```bash
-cd frontend
-npm run dev
-```
-
-Open: **http://localhost:5173**
-
-> ⚠️ All data shown is DEMO DATA. The dashboard clearly displays "DEMO MODE".
-> No real network traffic is captured in Phase 1.
+This project serves as a comprehensive Capstone / B.Tech Final Year Project demonstrating:
+1. **Data Mining:** Unsupervised DBSCAN density clustering, Isolation Forest anomaly scoring, and Apriori frequent itemset mining.
+2. **Supervised Machine Learning:** Multi-class network intrusion classification trained and evaluated on the benchmark **CICIDS2017** dataset.
+3. **Cybersecurity Operations:** Real-time port scan detection, DoS/DDoS mitigation signaling, and host reconnaissance monitoring.
+4. **Network Engineering:** High-performance packet sniffing, raw socket handling, and bi-directional conversational flow reconstruction.
+5. **Full-Stack Engineering:** High-throughput asynchronous Python FastAPI backend paired with a reactive, modern React TypeScript frontend.
 
 ---
 
-## Running the Backend (Phase 3+)
+## 📄 License
 
-NOT YET IMPLEMENTED
-
-```bash
-# Future command:
-cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-API docs will be available at: http://localhost:8000/docs
-
----
-
-## What is Real vs Mock
-
-| Component | Status | Notes |
-|-----------|--------|-------|
-| React dashboard UI | ✅ Real | Built and running |
-| Mock metric cards | ⚠️ DEMO | Hardcoded demo values |
-| Traffic trend chart | ⚠️ DEMO | Random generated data |
-| Anomaly table | ⚠️ DEMO | Hardcoded example anomalies |
-| ML metrics | ⚠️ PLACEHOLDER | All zeros — not yet trained |
-| DBSCAN clusters | ⚠️ DEMO | Example clusters only |
-| Association rules | ⚠️ DEMO | Manually created examples |
-| FastAPI backend | ❌ NOT IMPLEMENTED | Phase 3 |
-| Live traffic capture | ❌ NOT IMPLEMENTED | Phase 9 |
-| Real ML inference | ❌ NOT IMPLEMENTED | Phase 11 |
-
----
-
-## Known Limitations
-
-- Phase 1 only: all data is demo/mock
-- No real packet capture yet
-- ML models are not trained
-- No real anomaly detection yet
-- WebSocket streaming not yet connected
-- Settings and Reports pages are placeholders
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19 + Vite 8 + TypeScript |
-| Styling | Vanilla CSS (custom design system) |
-| Charts | Recharts |
-| Icons | Lucide React |
-| Routing | React Router DOM v7 |
-| Backend | FastAPI + Uvicorn |
-| ML | Scikit-learn + XGBoost + Joblib |
-| Data Mining | Scikit-learn + mlxtend (Apriori) |
-| Network | TShark + Npcap + PyShark |
-| Database | SQLite (SQLAlchemy ORM) |
-
----
-
-## Academic Context
-
-This is a B.Tech final year project demonstrating:
-- **Data Mining:** DBSCAN clustering, Isolation Forest, Apriori association rules
-- **Machine Learning:** Supervised traffic classification (Decision Tree, Random Forest, XGBoost)
-- **Cybersecurity:** Network anomaly detection
-- **Full-Stack:** React frontend + FastAPI backend
-- **Network Analysis:** Flow-level feature extraction from real traffic
-
----
-
-## License
-
-Academic project — not for commercial use.
+Academic research and educational project — created by Arun A Raj, Adithyan H, and Vaishnav Prakash.

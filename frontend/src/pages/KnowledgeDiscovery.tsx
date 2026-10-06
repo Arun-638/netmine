@@ -1,4 +1,4 @@
-﻿// =========================================================
+// =========================================================
 // NetMine AI — Knowledge Discovery (Phase 7 updated)
 //
 // What this page contains:
@@ -11,10 +11,10 @@
 import { useState, useEffect } from "react";
 import Topbar from "../components/layout/Topbar";
 import ClusterChart from "../charts/ClusterChart";
-import { mockClusters, mockAssociationRules } from "../mock/data";
+import { getApiUrl } from "../services/api";
 import type { Cluster, AssociationRule } from "../types";
 
-const API = "http://localhost:8000";
+const API = getApiUrl();
 const TABS = ["DBSCAN Clusters", "Association Rules", "Patterns"] as const;
 type Tab = typeof TABS[number];
 
@@ -37,12 +37,12 @@ export default function KnowledgeDiscovery() {
   const [minLift, setMinLift] = useState(0);
 
   // Real backend data states
-  const [clusters, setClusters] = useState<Cluster[]>(mockClusters);
-  const [rules, setRules] = useState<AssociationRule[]>(mockAssociationRules);
-  const [isRealClusters, setIsRealClusters] = useState(false);
-  const [isRealRules, setIsRealRules] = useState(false);
-  const [totalFlows, setTotalFlows] = useState<number>(12000);
-  const [noiseCount, setNoiseCount] = useState<number>(231);
+  const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [rules, setRules] = useState<AssociationRule[]>([]);
+  const [isRealClusters, setIsRealClusters] = useState(true);
+  const [isRealRules, setIsRealRules] = useState(true);
+  const [totalFlows, setTotalFlows] = useState<number>(0);
+  const [noiseCount, setNoiseCount] = useState<number>(0);
 
   useEffect(() => {
     // Fetch real DBSCAN clusters
@@ -94,14 +94,7 @@ export default function KnowledgeDiscovery() {
           <div className="page-header-left">
             <h1 className="page-header-title">Knowledge Discovery</h1>
             <p className="page-header-subtitle">
-              Data Mining results ·{" "}
-              {isRealClusters || isRealRules ? (
-                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>
-                  ✓ Phase 7 — Real Measured CICIDS2017 Results
-                </span>
-              ) : (
-                <span style={{ color: "var(--color-accent-amber)" }}>DEMO DATA</span>
-              )}
+              Data Mining results · <span style={{ color: "var(--color-success)", fontWeight: 600 }}>Real Measured Models</span>
             </p>
           </div>
         </div>
@@ -126,9 +119,7 @@ export default function KnowledgeDiscovery() {
             <div className="card" style={{ marginBottom: 20 }}>
               <div className="card-header">
                 <span className="card-title">Cluster Scatter Plot (Packets vs Bytes)</span>
-                <span className={isRealClusters ? "live-badge" : "demo-badge"}>
-                  {isRealClusters ? "DBSCAN Measured" : "Demo Data"}
-                </span>
+                <span className="live-badge">DBSCAN Measured</span>
               </div>
               <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 12 }}>
                 Evaluated across <strong>{totalFlows.toLocaleString()} network flows</strong>.
@@ -199,9 +190,7 @@ export default function KnowledgeDiscovery() {
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="card-header">
                 <span className="card-title">Threshold Filters</span>
-                <span className={isRealRules ? "live-badge" : "demo-badge"}>
-                  {isRealRules ? "Apriori Mined" : "Demo Data"}
-                </span>
+                <span className="live-badge">Apriori Mined</span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
                 {[

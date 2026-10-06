@@ -8,9 +8,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Square, Trash2, Wifi, WifiOff, Cpu, Activity, ShieldAlert, CheckCircle, RefreshCw } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
-import TrafficChart from "../charts/TrafficChart";
-import { useSimulatedTraffic } from "../hooks/useSimulatedTraffic";
-import { mockTrafficTrend } from "../mock/data";
 import { getApiUrl } from "../services/api";
 
 const API = getApiUrl();
@@ -83,8 +80,6 @@ const PROTO_COLOR: Record<string, string> = {
 };
 
 export default function LiveTraffic() {
-  const [engineMode, setEngineMode] = useState<"LIVE" | "SIM">("LIVE");
-
   // Live capture states
   const [interfaces, setInterfaces] = useState<CaptureInterface[]>([]);
   const [selectedInterface, setSelectedInterface] = useState<string>("5");
@@ -108,9 +103,6 @@ export default function LiveTraffic() {
   const [filterLabel, setFilterLabel] = useState("ALL");
   const [filterProto, setFilterProto] = useState("ALL");
 
-  // Simulated traffic hook for DEMO fallback
-  const sim = useSimulatedTraffic(100, 600);
-
   // Poll available interfaces on mount
   useEffect(() => {
     fetch(`${API}/api/capture/interfaces`)
@@ -125,10 +117,8 @@ export default function LiveTraffic() {
       .catch(() => {});
   }, []);
 
-  // Poll status & flows when in LIVE mode
+  // Poll status & flows continuously
   useEffect(() => {
-    if (engineMode !== "LIVE") return;
-
     const interval = setInterval(() => {
       fetch(`${API}/api/capture/status`)
         .then(r => r.json())
@@ -144,7 +134,7 @@ export default function LiveTraffic() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [engineMode]);
+  }, []);
 
   const handleStartCapture = async () => {
     setIsStarting(true);
@@ -176,29 +166,25 @@ export default function LiveTraffic() {
   };
 
   const handleClearFlows = async () => {
-    if (engineMode === "LIVE") {
-      setLiveFlows([]);
-      try {
-        await fetch(`${API}/api/capture/clear`, { method: "POST" });
-        setCaptureStatus(prev => ({
-          ...prev,
-          packets_captured: 0,
-          bytes_captured: 0,
-          flows_analyzed: 0,
-          attacks_detected: 0,
-          packets_per_sec: 0,
-          bytes_per_sec: 0,
-        }));
-      } catch (e) {
-        console.error("Failed to clear live flows:", e);
-      }
-    } else {
-      sim.clear();
+    setLiveFlows([]);
+    try {
+      await fetch(`${API}/api/capture/clear`, { method: "POST" });
+      setCaptureStatus(prev => ({
+        ...prev,
+        packets_captured: 0,
+        bytes_captured: 0,
+        flows_analyzed: 0,
+        attacks_detected: 0,
+        packets_per_sec: 0,
+        bytes_per_sec: 0,
+      }));
+    } catch (e) {
+      console.error("Failed to clear live flows:", e);
     }
   };
 
-  // Flows to display based on active mode
-  const displayedFlows = (engineMode === "LIVE" ? liveFlows : sim.flows).filter(f => {
+  // Flows to display based on active filters
+  const displayedFlows = liveFlows.filter(f => {
     const matchesLabel =
       filterLabel === "ALL"
         ? true
@@ -213,58 +199,27 @@ export default function LiveTraffic() {
     return matchesLabel && matchesProto;
   });
 
-  const isLiveRunning = captureStatus.active;
-  const isRunning = engineMode === "LIVE" ? isLiveRunning : sim.isRunning;
+  const isRunning = captureStatus.active;
 
   return (
     <>
       <Topbar
         title="Live Traffic Monitor"
         subtitle={
-          engineMode === "LIVE"
-            ? (isLiveRunning ? `Real-Time Capture Active (${captureStatus.interface})` : "TShark Capture Idle")
-            : (sim.isRunning ? "Simulation Running" : "Simulation Stopped")
+          isRunning ? `Real-Time Capture Active (${captureStatus.interface})` : "TShark Capture Idle"
         }
       />
       <div className="page-content fade-in-up">
 
-        {/* Page Header with Mode Selector */}
+        {/* Page Header */}
         <div className="page-header">
           <div className="page-header-left">
             <h1 className="page-header-title">Live Traffic Monitor</h1>
             <p className="page-header-subtitle">
-              {engineMode === "LIVE" ? (
-                <span>
-                  🟢 <strong>TShark 4.6.8 + Npcap Engine:</strong> Capturing live raw frames, reassembling flows, and predicting threats with <strong>XGBoost</strong> in real-time.
-                </span>
-              ) : (
-                <span style={{ color: "var(--color-accent-amber)" }}>
-                  🎲 <strong>Simulated Mode:</strong> Testing UI flows without requiring local network interface sniffing.
-                </span>
-              )}
+              <span>
+                🟢 <strong>TShark 4.6.8 + Npcap Engine:</strong> Capturing live raw frames, reassembling flows, and predicting threats with <strong>XGBoost</strong> in real-time.
+              </span>
             </p>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <div style={{
-              background: "var(--color-bg-surface)", border: "1px solid var(--color-border)",
-              borderRadius: 8, padding: 3, display: "flex",
-            }}>
-              <button
-                className={`tab-btn${engineMode === "LIVE" ? " active" : ""}`}
-                style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                onClick={() => setEngineMode("LIVE")}
-              >
-                🔴 Live TShark Engine
-              </button>
-              <button
-                className={`tab-btn${engineMode === "SIM" ? " active" : ""}`}
-                style={{ padding: "5px 12px", fontSize: "0.78rem" }}
-                onClick={() => setEngineMode("SIM")}
-              >
-                🎲 Simulated Stream
-              </button>
-            </div>
           </div>
         </div>
 
@@ -272,55 +227,39 @@ export default function LiveTraffic() {
         <div className="card" style={{ marginBottom: 16, padding: "14px 18px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              {engineMode === "LIVE" ? (
-                <>
-                  <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Capture Interface:</span>
-                  <select
-                    className="filter-select"
-                    style={{ minWidth: 220 }}
-                    value={selectedInterface}
-                    onChange={e => setSelectedInterface(e.target.value)}
-                    disabled={isLiveRunning}
-                  >
-                    {interfaces.length > 0 ? (
-                      interfaces.map(i => (
-                        <option key={i.id} value={i.id}>
-                          {i.id}. {i.name} {i.is_default ? "(Default)" : ""}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="5">5. Wi-Fi</option>
-                    )}
-                  </select>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Capture Interface:</span>
+              <select
+                className="filter-select"
+                style={{ minWidth: 220 }}
+                value={selectedInterface}
+                onChange={e => setSelectedInterface(e.target.value)}
+                disabled={isRunning}
+              >
+                {interfaces.length > 0 ? (
+                  interfaces.map(i => (
+                    <option key={i.id} value={i.id}>
+                      {i.id}. {i.name} {i.is_default ? "(Default)" : ""}
+                    </option>
+                  ))
+                ) : (
+                  <option value="5">5. Wi-Fi</option>
+                )}
+              </select>
 
-                  {!isLiveRunning ? (
-                    <button className="btn btn-primary" onClick={handleStartCapture} disabled={isStarting}>
-                      <Play size={13} /> {isStarting ? "Starting TShark..." : "Start Real Capture"}
-                    </button>
-                  ) : (
-                    <button className="btn btn-danger" onClick={handleStopCapture}>
-                      <Square size={13} /> Stop Live Capture
-                    </button>
-                  )}
-                </>
+              {!isRunning ? (
+                <button className="btn btn-primary" onClick={handleStartCapture} disabled={isStarting}>
+                  <Play size={13} /> {isStarting ? "Starting TShark..." : "Start Real Capture"}
+                </button>
               ) : (
-                <>
-                  {!sim.isRunning ? (
-                    <button className="btn btn-primary" onClick={sim.start}>
-                      <Play size={13} /> Start Simulation
-                    </button>
-                  ) : (
-                    <button className="btn btn-danger" onClick={sim.stop}>
-                      <Square size={13} /> Stop Simulation
-                    </button>
-                  )}
-                </>
+                <button className="btn btn-danger" onClick={handleStopCapture}>
+                  <Square size={13} /> Stop Live Capture
+                </button>
               )}
 
               <button
                 className="btn btn-ghost"
                 onClick={handleClearFlows}
-                disabled={displayedFlows.length === 0 && (engineMode !== "LIVE" || captureStatus.flows_analyzed === 0)}
+                disabled={displayedFlows.length === 0 && captureStatus.flows_analyzed === 0}
               >
                 <Trash2 size={13} /> Clear Table
               </button>
@@ -338,30 +277,30 @@ export default function LiveTraffic() {
           {[
             {
               label: "Status",
-              value: isRunning ? (engineMode === "LIVE" ? "CAPTURING" : "SIMULATING") : "IDLE",
-              sub: isRunning ? (engineMode === "LIVE" ? captureStatus.interface : "Active") : "Click Start",
+              value: isRunning ? "CAPTURING" : "IDLE",
+              sub: isRunning ? captureStatus.interface : "Click Start",
               color: isRunning ? "var(--color-success)" : "var(--color-text-muted)",
             },
             {
               label: "Packets / sec",
-              value: engineMode === "LIVE" ? `${captureStatus.packets_per_sec}` : (sim.isRunning ? `~${sim.packetsPerSec}` : "—"),
-              sub: engineMode === "LIVE" ? "live wire rate" : "simulated",
+              value: `${captureStatus.packets_per_sec}`,
+              sub: "live wire rate",
             },
             {
               label: "Throughput",
-              value: engineMode === "LIVE" ? `${(captureStatus.bytes_per_sec / 1024).toFixed(1)} KB/s` : "—",
+              value: `${(captureStatus.bytes_per_sec / 1024).toFixed(1)} KB/s`,
               sub: "network bandwidth",
             },
             {
               label: "Flows Analyzed",
-              value: engineMode === "LIVE" ? captureStatus.flows_analyzed.toLocaleString() : sim.flows.length.toLocaleString(),
+              value: captureStatus.flows_analyzed.toLocaleString(),
               sub: "bidirectional windows",
             },
             {
               label: "Threats Found",
-              value: engineMode === "LIVE" ? captureStatus.attacks_detected.toString() : sim.flows.filter(f => f.label !== "BENIGN").length.toString(),
+              value: captureStatus.attacks_detected.toString(),
               sub: "non-BENIGN flows",
-              color: (engineMode === "LIVE" ? captureStatus.attacks_detected : sim.flows.filter(f => f.label !== "BENIGN").length) > 0 ? "var(--color-danger)" : undefined,
+              color: captureStatus.attacks_detected > 0 ? "var(--color-danger)" : undefined,
             },
             {
               label: "ML Model Status",

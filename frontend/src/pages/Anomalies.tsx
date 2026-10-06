@@ -8,7 +8,6 @@ import {
   Zap, Trash2, Check, Clock, Radio
 } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
-import { mockAnomalies } from "../mock/data";
 import { getApiUrl } from "../services/api";
 import type { Anomaly } from "../types";
 

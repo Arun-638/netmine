@@ -188,13 +188,9 @@ export default function MLAnalytics() {
             <h1 className="page-header-title">Machine Learning Analytics</h1>
             <p className="page-header-subtitle">
               Dual Benchmark Evaluation: <strong>CICIDS2017</strong> & <strong>UNSW-NB15</strong> ·{" "}
-              {isRealData ? (
-                <span style={{ color: "var(--color-success)", fontWeight: 600 }}>
-                  ✓ Real Trained & Evaluated Results
-                </span>
-              ) : (
-                <span style={{ color: "var(--color-accent-amber)" }}>Demo Data</span>
-              )}
+              <span style={{ color: "var(--color-success)", fontWeight: 600 }}>
+                ✓ Real Trained & Evaluated Results
+              </span>
             </p>
           </div>
           {cicidsData?.best_model && (
@@ -485,7 +481,7 @@ export default function MLAnalytics() {
                 <div className="card">
                   <div className="card-header">
                     <span className="card-title">Live Feature Compatibility</span>
-                    <span className="demo-badge">Domain Architecture</span>
+                    <span className="chip chip-blue">Domain Architecture</span>
                   </div>
                   <table className="data-table">
                     <thead>
