@@ -8,7 +8,7 @@ import {
   Zap, Trash2, Check, Clock, Radio
 } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
-import { getApiUrl } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 import type { Anomaly } from "../types";
 
 function severityClass(s: string) {
@@ -48,7 +48,8 @@ export default function Anomalies() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isInjecting, setIsInjecting] = useState<boolean>(false);
 
-  const api = getApiUrl();
+  const { settings } = useSettings();
+  const api = settings.apiUrl;
 
   const fetchAnomalies = useCallback(async () => {
     try {
@@ -151,7 +152,8 @@ export default function Anomalies() {
 
   const filtered = anomalies.filter(a =>
     (severityFilter === "ALL" || a.severity === severityFilter) &&
-    (statusFilter   === "ALL" || a.status   === statusFilter)
+    (statusFilter   === "ALL" || a.status   === statusFilter) &&
+    (a.score >= settings.ifThreshold)
   );
 
   const counts = {
@@ -293,6 +295,9 @@ export default function Anomalies() {
               <option value="investigating">Investigating</option>
               <option value="resolved">Resolved</option>
             </select>
+            <span className="badge badge-medium" style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "10px" }}>
+              IF Threshold: &ge; {(settings.ifThreshold * 100).toFixed(0)}%
+            </span>
             <span style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", marginLeft: "auto" }}>
               {filtered.length} of {anomalies.length} threats shown
             </span>

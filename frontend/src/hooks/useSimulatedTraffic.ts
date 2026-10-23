@@ -11,7 +11,7 @@
 // =========================================================
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { TrafficFlow } from "../types";
-import { getApiUrl } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 
 const PROTOCOLS = ["TCP", "TCP", "TCP", "UDP", "UDP", "ICMP"];
 const LABELS    = ["BENIGN", "BENIGN", "BENIGN", "BENIGN", "BENIGN", "PortScan", "SSHBrute", "DDoS", "RDPAttack"];
@@ -60,6 +60,8 @@ export function useSimulatedTraffic(
   const [packetsPerSec, setPPS]        = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ppsRef      = useRef(0);
+  const { settings } = useSettings();
+  const api = settings.apiUrl;
 
   const tick = useCallback(() => {
     const count    = Math.floor(Math.random() * 3) + 1;
@@ -71,7 +73,6 @@ export function useSimulatedTraffic(
     const threats = newFlows.filter(f => f.label !== "BENIGN");
     if (threats.length > 0) {
       try {
-        const api = getApiUrl();
         threats.forEach(f => {
           fetch(`${api}/api/anomalies`, {
             method: "POST",
@@ -117,10 +118,9 @@ export function useSimulatedTraffic(
     stop();
     setFlows([]);
     try {
-      const api = getApiUrl();
       fetch(`${api}/api/anomalies/clear`, { method: "POST" }).catch(() => {});
     } catch {}
-  }, [stop]);
+  }, [stop, api]);
 
   useEffect(() => () => { if (intervalRef.current) clearInterval(intervalRef.current); }, []);
 

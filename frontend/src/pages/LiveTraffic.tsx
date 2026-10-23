@@ -8,9 +8,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Square, Trash2, Wifi, WifiOff, Cpu, Activity, ShieldAlert, CheckCircle, RefreshCw } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
-import { getApiUrl } from "../services/api";
-
-const API = getApiUrl();
+import { useSettings } from "../context/SettingsContext";
 
 interface CaptureInterface {
   id: string;
@@ -65,9 +63,9 @@ function labelClass(l: string) {
   return "badge badge-critical";
 }
 
-function anomalyClass(score: number) {
-  if (score >= 0.70) return "var(--color-danger)";
-  if (score >= 0.40) return "var(--color-warning)";
+function anomalyClass(score: number, threshold: number) {
+  if (score >= threshold) return "var(--color-danger)";
+  if (score >= Math.max(threshold - 0.2, 0.4)) return "var(--color-warning)";
   return "var(--color-success)";
 }
 
@@ -80,9 +78,11 @@ const PROTO_COLOR: Record<string, string> = {
 };
 
 export default function LiveTraffic() {
+  const { settings, updateSettings } = useSettings();
+  const API = settings.apiUrl;
   // Live capture states
   const [interfaces, setInterfaces] = useState<CaptureInterface[]>([]);
-  const [selectedInterface, setSelectedInterface] = useState<string>("5");
+  const [selectedInterface, setSelectedInterface] = useState<string>(settings.iface);
   const [captureStatus, setCaptureStatus] = useState<CaptureStatus>({
     active: false,
     interface: "Wi-Fi",
@@ -232,7 +232,10 @@ export default function LiveTraffic() {
                 className="filter-select"
                 style={{ minWidth: 220 }}
                 value={selectedInterface}
-                onChange={e => setSelectedInterface(e.target.value)}
+                onChange={e => {
+                  setSelectedInterface(e.target.value);
+                  updateSettings({ iface: e.target.value });
+                }}
                 disabled={isRunning}
               >
                 {interfaces.length > 0 ? (
@@ -410,7 +413,7 @@ export default function LiveTraffic() {
                       <td>
                         <span style={{
                           fontFamily: '"JetBrains Mono",monospace', fontWeight: 600,
-                          color: anomalyClass(f.anomaly_score ?? 0.05),
+                          color: anomalyClass(f.anomaly_score ?? 0.05, settings.ifThreshold),
                         }}>
                           {(((f.anomaly_score ?? 0.05)) * 100).toFixed(0)}%
                         </span>

@@ -14,10 +14,12 @@ import MLAnalytics from "./pages/MLAnalytics";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Topbar from "./components/layout/Topbar";
+import { SettingsProvider } from "./context/SettingsContext";
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <SettingsProvider>
+      <BrowserRouter>
       <Routes>
         {/* All pages share the AppLayout (Sidebar + page slot) */}
         <Route element={<AppLayout />}>
@@ -43,6 +45,7 @@ export default function App() {
           <Route path="/settings"  element={<Settings />}          />
         </Route>
       </Routes>
-    </BrowserRouter>
+      </BrowserRouter>
+    </SettingsProvider>
   );
 }

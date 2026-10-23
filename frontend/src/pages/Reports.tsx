@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { Download, FileText, Calendar, BarChart2, Radio, CheckCircle } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
-import { getApiUrl } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 
 function formatBytes(b: number) {
   if (!b || isNaN(b)) return "0 B";
@@ -15,9 +15,9 @@ function formatBytes(b: number) {
   return `${b} B`;
 }
 
-const API = getApiUrl();
-
 export default function Reports() {
+  const { settings } = useSettings();
+  const API = settings.apiUrl;
   const [exporting, setExporting] = useState<string | null>(null);
   const [anomalies, setAnomalies] = useState<any[]>([]);
   const [flows, setFlows] = useState<any[]>([]);

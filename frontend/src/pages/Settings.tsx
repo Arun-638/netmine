@@ -8,10 +8,10 @@
 //   - ML model threshold sliders (Phase 7)
 //   - Team info panel
 // =========================================================
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save, RefreshCw, Server, Cpu, Shield, Users, RotateCcw } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
-import { loadSettings, saveSettings, resetSettings } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 
 type Section = "Connection" | "Capture" | "ML Thresholds" | "Team";
 
@@ -24,28 +24,32 @@ const TEAM = [
 ];
 
 export default function Settings() {
+  const { settings, updateSettings, resetSettings: _resetSettings } = useSettings();
   const [section,      setSection]      = useState<Section>("Connection");
-  const [initial]                       = useState(() => loadSettings());
-  const [apiUrl,       setApiUrl]       = useState(initial.apiUrl);
-  const [iface,        setIface]        = useState(initial.iface);
-  const [ifThreshold,  setIfThreshold]  = useState(initial.ifThreshold);
-  const [dbscanEps,    setDbscanEps]    = useState(initial.dbscanEps);
-  const [dbscanMin,    setDbscanMin]    = useState(initial.dbscanMin);
+
+  const [apiUrl,       setApiUrl]       = useState(settings.apiUrl);
+  const [iface,        setIface]        = useState(settings.iface);
+  const [ifThreshold,  setIfThreshold]  = useState(settings.ifThreshold);
+  const [dbscanEps,    setDbscanEps]    = useState(settings.dbscanEps);
+  const [dbscanMin,    setDbscanMin]    = useState(settings.dbscanMin);
   const [saved,        setSaved]        = useState(false);
 
+  useEffect(() => {
+    setApiUrl(settings.apiUrl);
+    setIface(settings.iface);
+    setIfThreshold(settings.ifThreshold);
+    setDbscanEps(settings.dbscanEps);
+    setDbscanMin(settings.dbscanMin);
+  }, [settings]);
+
   function handleSave() {
-    saveSettings({ apiUrl, iface, ifThreshold, dbscanEps, dbscanMin });
+    updateSettings({ apiUrl, iface, ifThreshold, dbscanEps, dbscanMin });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
   function handleReset() {
-    const def = resetSettings();
-    setApiUrl(def.apiUrl);
-    setIface(def.iface);
-    setIfThreshold(def.ifThreshold);
-    setDbscanEps(def.dbscanEps);
-    setDbscanMin(def.dbscanMin);
+    _resetSettings();
     setSaved(false);
   }
 

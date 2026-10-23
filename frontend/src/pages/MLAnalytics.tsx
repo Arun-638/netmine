@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { FlaskConical, CheckCircle, AlertCircle, Loader, Layers, ShieldAlert, BarChart3 } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
 import MLComparisonChart from "../charts/MLComparisonChart";
+import { useSettings } from "../context/SettingsContext";
 
 // ── Types ──────────────────────────────────────────────────
 interface MLModel {
@@ -77,8 +78,6 @@ interface ComparisonData {
   models_comparison: ModelComparisonItem[];
 }
 
-import { getApiUrl } from "../services/api";
-
 // ── 1. Phase 5 Raw EDA Imbalanced Class Distribution (Before Balancing) ──
 const RAW_CLASS_DIST = [
   { label: "BENIGN",                     count: 2148386, day: "Mon–Fri",   pct: 83.46, status: "raw",  note: "Majority — heavy imbalance (83.46%)" },
@@ -136,11 +135,12 @@ const MODEL_COLORS: Record<string, string> = {
   "XGBoost":       "#f59e0b",
 };
 
-const API = getApiUrl();
 const TABS = ["CICIDS2017 Benchmark", "UNSW-NB15 Benchmark", "Cross-Dataset Comparison"] as const;
 type Tab = typeof TABS[number];
 
 export default function MLAnalytics() {
+  const { settings } = useSettings();
+  const API = settings.apiUrl;
   const [tab, setTab] = useState<Tab>("CICIDS2017 Benchmark");
   const [distMode, setDistMode] = useState<"BALANCED" | "RAW" | "COMPARISON">("BALANCED");
   const [cicidsData, setCicidsData] = useState<MLMetricsList | null>(null);

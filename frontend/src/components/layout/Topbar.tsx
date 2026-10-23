@@ -4,10 +4,8 @@
 // =========================================================
 import { useState, useEffect } from "react";
 import { Bell, RefreshCw, PanelLeft } from "lucide-react";
-import { getApiUrl } from "../../services/api";
 import { useSidebar } from "../../context/SidebarContext";
-
-const API = getApiUrl();
+import { useSettings } from "../../context/SettingsContext";
 
 interface TopbarProps {
   title: string;
@@ -16,6 +14,8 @@ interface TopbarProps {
 
 export default function Topbar({ title, subtitle }: TopbarProps) {
   const { isCollapsed, toggleSidebar } = useSidebar();
+  const { settings } = useSettings();
+  const API = settings.apiUrl;
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [timeStr, setTimeStr] = useState<string>("");
 

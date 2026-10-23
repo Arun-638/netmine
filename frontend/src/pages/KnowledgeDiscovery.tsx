@@ -11,10 +11,9 @@
 import { useState, useEffect } from "react";
 import Topbar from "../components/layout/Topbar";
 import ClusterChart from "../charts/ClusterChart";
-import { getApiUrl } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 import type { Cluster, AssociationRule } from "../types";
 
-const API = getApiUrl();
 const TABS = ["DBSCAN Clusters", "Association Rules", "Patterns"] as const;
 type Tab = typeof TABS[number];
 
@@ -31,6 +30,8 @@ function liftColor(lift: number) {
 }
 
 export default function KnowledgeDiscovery() {
+  const { settings } = useSettings();
+  const API = settings.apiUrl;
   const [tab, setTab] = useState<Tab>("DBSCAN Clusters");
   const [minSupport, setMinSupport] = useState(0);
   const [minConf, setMinConf] = useState(0);
@@ -119,10 +120,18 @@ export default function KnowledgeDiscovery() {
             <div className="card" style={{ marginBottom: 20 }}>
               <div className="card-header">
                 <span className="card-title">Cluster Scatter Plot (Packets vs Bytes)</span>
-                <span className="live-badge">DBSCAN Measured</span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <span className="badge badge-medium" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    eps: {settings.dbscanEps.toFixed(1)}
+                  </span>
+                  <span className="badge badge-medium" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    minPts: {settings.dbscanMin}
+                  </span>
+                  <span className="live-badge">DBSCAN Measured</span>
+                </div>
               </div>
               <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 12 }}>
-                Evaluated across <strong>{totalFlows.toLocaleString()} network flows</strong>.
+                Evaluated across <strong>{totalFlows.toLocaleString()} network flows</strong> with eps={settings.dbscanEps.toFixed(1)} and min_samples={settings.dbscanMin}.
                 Identified <strong>{clusters.filter(c => c.id !== -1).length} dense behavioral clusters</strong> and{" "}
                 <strong style={{ color: "var(--color-danger)" }}>{noiseCount} noise points</strong>.
                 Red points indicate flows DBSCAN isolated as geometric noise (unusual probes and port sweeps).
