@@ -13,6 +13,7 @@ import MetricCard from "../components/ui/MetricCard";
 import TrafficChart from "../charts/TrafficChart";
 import ProtocolChart from "../charts/ProtocolChart";
 import { useSettings } from "../context/SettingsContext";
+import { Skeleton, MetricCardSkeleton } from "../components/ui/Skeleton";
 import type { MetricCardData, Anomaly, TrafficFlow, ProtocolStat, TrafficTrendPoint } from "../types";
 
 // Map metric card ids to icons + colors
@@ -68,6 +69,7 @@ export default function Dashboard() {
   const [flows, setFlows] = useState<TrafficFlow[]>([]);
   const [dataSource, setDataSource] = useState<string>("IDLE");
   const [isLive, setIsLive] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [bottomTab, setBottomTab] = useState<"flows" | "anomalies">("flows");
 
@@ -150,13 +152,37 @@ export default function Dashboard() {
     } catch {
       setIsLive(false);
       setDataSource("OFFLINE");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 2500);
-    return () => clearInterval(interval);
+
+    let interval: ReturnType<typeof setInterval>;
+
+    const startPolling = () => {
+      interval = setInterval(() => {
+        if (!document.hidden) {
+          fetchDashboardData();
+        }
+      }, 2500);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchDashboardData();
+      }
+    };
+
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [api]);
 
   return (
@@ -184,7 +210,11 @@ export default function Dashboard() {
       </div>
 
       {/* Metric cards */}
-      {metrics.length === 0 ? (
+      {loading ? (
+        <div className="metrics-grid">
+          {Array.from({ length: 6 }).map((_, i) => <MetricCardSkeleton key={i} />)}
+        </div>
+      ) : metrics.length === 0 ? (
         <div style={{
           textAlign: "center", padding: "40px 20px",
           color: "var(--color-text-muted)", fontSize: "0.9rem",
@@ -221,7 +251,9 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="chart-wrapper-lg">
-            {trafficTrend.length > 0
+            {loading ? (
+               <Skeleton style={{ width: "100%", height: "100%" }} />
+            ) : trafficTrend.length > 0
               ? <TrafficChart data={trafficTrend} />
               : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-muted)", fontSize: "0.82rem" }}>No traffic data — start capture</div>
             }

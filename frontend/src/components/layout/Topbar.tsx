@@ -87,6 +87,7 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
           }}
         >
           <span
+            className={isCapturing ? "animate-pulse" : ""}
             style={{
               width: 7,
               height: 7,
