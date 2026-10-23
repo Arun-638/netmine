@@ -11,6 +11,7 @@ import { FlaskConical, CheckCircle, AlertCircle, Loader, Layers, ShieldAlert, Ba
 import Topbar from "../components/layout/Topbar";
 import MLComparisonChart from "../charts/MLComparisonChart";
 import { useSettings } from "../context/SettingsContext";
+import { Skeleton } from "../components/ui/Skeleton";
 
 // ── Types ──────────────────────────────────────────────────
 interface MLModel {
@@ -150,6 +151,7 @@ export default function MLAnalytics() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
       fetch(`${API}/api/ml/metrics`).then(r => r.json()),
       fetch(`${API}/api/ml/unsw`).then(r => r.json()).catch(() => null),
@@ -220,9 +222,26 @@ export default function MLAnalytics() {
         </div>
 
         {loading ? (
-          <div className="card" style={{ textAlign: "center", padding: 40 }}>
-            <Loader size={24} style={{ animation: "spin 1s linear infinite", margin: "0 auto 12px" }} />
-            <p>Loading model evaluation benchmarks from backend...</p>
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="card" style={{ padding: 20 }}>
+                  <Skeleton style={{ width: 150, height: 24, marginBottom: 16 }} />
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <div key={j} style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <Skeleton style={{ width: 60, height: 12 }} />
+                        <Skeleton style={{ width: 40, height: 12 }} />
+                      </div>
+                      <Skeleton style={{ width: "100%", height: 6 }} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="card" style={{ padding: 20 }}>
+              <Skeleton style={{ width: "100%", height: 300 }} />
+            </div>
           </div>
         ) : error ? (
           <div className="card" style={{ textAlign: "center", padding: 40, color: "var(--color-danger)" }}>

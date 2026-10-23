@@ -5,10 +5,12 @@
 //   Mode 1: Live Network Packet Capture (TShark + Npcap + Real-Time ML Inference)
 //   Mode 2: Simulated Traffic (Demo Mode)
 // =========================================================
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Play, Square, Trash2, Wifi, WifiOff, Cpu, Activity, ShieldAlert, CheckCircle, RefreshCw } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
 import { useSettings } from "../context/SettingsContext";
+import { useToast } from "../context/ToastContext";
+import { Skeleton } from "../components/ui/Skeleton";
 
 interface CaptureInterface {
   id: string;
@@ -98,6 +100,8 @@ export default function LiveTraffic() {
   });
   const [liveFlows, setLiveFlows] = useState<LiveFlow[]>([]);
   const [isStarting, setIsStarting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { addToast } = useToast();
 
   // Filters
   const [filterLabel, setFilterLabel] = useState("ALL");
@@ -119,7 +123,7 @@ export default function LiveTraffic() {
 
   // Poll status & flows continuously
   useEffect(() => {
-    const interval = setInterval(() => {
+    const fetchData = () => {
       fetch(`${API}/api/capture/status`)
         .then(r => r.json())
         .then(s => setCaptureStatus(s))
@@ -130,10 +134,34 @@ export default function LiveTraffic() {
         .then(d => {
           if (d && d.flows) setLiveFlows(d.flows);
         })
-        .catch(() => {});
-    }, 1000);
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    };
 
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval>;
+
+    const startPolling = () => {
+      interval = setInterval(() => {
+        if (!document.hidden) {
+          fetchData();
+        }
+      }, 1000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchData();
+      }
+    };
+
+    fetchData(); // Initial fetch
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const handleStartCapture = async () => {
@@ -149,8 +177,10 @@ export default function LiveTraffic() {
       });
       const data = await res.json();
       setCaptureStatus(prev => ({ ...prev, active: true, interface: ifaceName }));
+      addToast(`Live Capture Started on ${ifaceName}`, "success");
     } catch (e) {
       console.error(e);
+      addToast(`Failed to start capture on ${ifaceName}`, "error");
     } finally {
       setIsStarting(false);
     }
@@ -160,8 +190,10 @@ export default function LiveTraffic() {
     try {
       await fetch(`${API}/api/capture/stop`, { method: "POST" });
       setCaptureStatus(prev => ({ ...prev, active: false }));
+      addToast("Live Capture Stopped", "info");
     } catch (e) {
       console.error(e);
+      addToast("Failed to stop capture", "error");
     }
   };
 
@@ -178,26 +210,30 @@ export default function LiveTraffic() {
         packets_per_sec: 0,
         bytes_per_sec: 0,
       }));
+      addToast("Recent Flows Cleared", "success");
     } catch (e) {
       console.error("Failed to clear live flows:", e);
+      addToast("Failed to clear live flows", "error");
     }
   };
 
   // Flows to display based on active filters
-  const displayedFlows = liveFlows.filter(f => {
-    const matchesLabel =
-      filterLabel === "ALL"
-        ? true
-        : filterLabel === "ATTACKS_ONLY"
-        ? f.label !== "BENIGN"
-        : f.label === filterLabel || (filterLabel === "Web Attack" && (f.label || "").startsWith("Web Attack"));
-    const protoStr = (f.protocol || "").toUpperCase();
-    const matchesProto =
-      filterProto === "ALL"
-        ? true
-        : protoStr.includes(filterProto.toUpperCase());
-    return matchesLabel && matchesProto;
-  });
+  const displayedFlows = useMemo(() => {
+    return liveFlows.filter(f => {
+      const matchesLabel =
+        filterLabel === "ALL"
+          ? true
+          : filterLabel === "ATTACKS_ONLY"
+          ? f.label !== "BENIGN"
+          : f.label === filterLabel || (filterLabel === "Web Attack" && (f.label || "").startsWith("Web Attack"));
+      const protoStr = (f.protocol || "").toUpperCase();
+      const matchesProto =
+        filterProto === "ALL"
+          ? true
+          : protoStr.includes(filterProto.toUpperCase());
+      return matchesLabel && matchesProto;
+    });
+  }, [liveFlows, filterLabel, filterProto]);
 
   const isRunning = captureStatus.active;
 
@@ -374,10 +410,26 @@ export default function LiveTraffic() {
                 </tr>
               </thead>
               <tbody>
-                {displayedFlows.length === 0 ? (
+                {loading ? (
+                  Array.from({ length: 10 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 10 }).map((_, j) => (
+                        <td key={j}><Skeleton style={{ width: "100%", height: 20 }} /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : displayedFlows.length === 0 ? (
                   <tr>
                     <td colSpan={10} style={{ textAlign: "center", padding: 36, color: "var(--color-text-muted)" }}>
-                      {isRunning ? "Waiting for flow windows to complete (4s timeout)..." : "Capture is idle. Click 'Start Real Capture' to sniff live network packets."}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                        <Activity size={32} style={{ color: "var(--color-accent-blue)", opacity: 0.5 }} />
+                        <span style={{ fontWeight: 500 }}>
+                          {isRunning ? "Waiting for flow windows to complete (4s timeout)..." : "Capture is idle."}
+                        </span>
+                        <span style={{ fontSize: "0.85rem" }}>
+                           {!isRunning && "Click 'Start Real Capture' to sniff live network packets."}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ) : (

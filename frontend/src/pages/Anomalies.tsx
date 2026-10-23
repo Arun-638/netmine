@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
 import { useSettings } from "../context/SettingsContext";
+import { Skeleton } from "../components/ui/Skeleton";
 import type { Anomaly } from "../types";
 
 function severityClass(s: string) {
@@ -47,6 +48,7 @@ export default function Anomalies() {
   const [metrics,     setMetrics]     = useState<any>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isInjecting, setIsInjecting] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
 
   const { settings } = useSettings();
   const api = settings.apiUrl;
@@ -78,14 +80,38 @@ export default function Anomalies() {
     } catch {
       setDataSource("OFFLINE");
       setIsLiveActive(false);
+    } finally {
+      setLoading(false);
     }
   }, [api, viewMode]);
 
   // Initial fetch and auto-polling every 2 seconds
   useEffect(() => {
     fetchAnomalies();
-    const interval = setInterval(fetchAnomalies, 2000);
-    return () => clearInterval(interval);
+
+    let interval: ReturnType<typeof setInterval>;
+
+    const startPolling = () => {
+      interval = setInterval(() => {
+        if (!document.hidden) {
+          fetchAnomalies();
+        }
+      }, 2000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchAnomalies();
+      }
+    };
+
+    startPolling();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [fetchAnomalies]);
 
   // Fetch model metrics once
@@ -319,15 +345,24 @@ export default function Anomalies() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
+                  Array.from({ length: 10 }).map((_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 9 }).map((_, j) => (
+                        <td key={j}><Skeleton style={{ width: "100%", height: 20 }} /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={9} style={{ textAlign: "center", padding: 40, color: "var(--color-text-muted)" }}>
                       {viewMode === "LIVE" ? (
-                        <div>
-                          <p style={{ fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 6 }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                          <Shield style={{ color: "var(--color-success)", opacity: 0.8 }} size={40} />
+                          <p style={{ fontWeight: 600, color: "var(--color-text-primary)", marginBottom: 0 }}>
                             No active threats detected on the wire.
                           </p>
-                          <p style={{ fontSize: "0.82rem" }}>
+                          <p style={{ fontSize: "0.82rem", maxWidth: 400 }}>
                             Traffic is normal (BENIGN). Click <strong>"⚡ Test PortScan"</strong> above to inject a live detection test event.
                           </p>
                         </div>
