@@ -304,30 +304,41 @@ class LiveCaptureEngine:
         # the start of a benign handshake to a static per-flow classifier.
         # But an IP scanning multiple distinct ports within a short window
         # is the canonical signature of a real-world PortScan (Nmap, Zenmap, TCP sweeps).
-        now_ts = flow.last_time if flow.last_time > 0 else time.time()
-        pair_key = (flow.src_ip, flow.dst_ip)
-        q = self._scan_tracker[pair_key]
-        while q and (now_ts - q[0]["time"]) > 15.0:
-            q.popleft()
-        q.append({
-            "time": now_ts,
-            "dst_port": flow.dst_port,
-            "syn": flow.syn_cnt,
-            "rst": flow.rst_cnt,
-            "data_pkts": flow.act_data_pkt_fwd,
-        })
-        distinct_ports = {item["dst_port"] for item in q}
-        distinct_syn_probes = {item["dst_port"] for item in q if item["syn"] > 0 and item["data_pkts"] == 0}
-
-        is_portscan_detected = (
-            len(distinct_ports) >= 4 or
-            len(distinct_syn_probes) >= 3 or
-            predicted_label == "PortScan"
+        # We exclude loopback traffic (127.0.0.1 / ::1) and only count true SYN/RST probes
+        # with zero application payload data.
+        is_loopback = (
+            flow.src_ip in ("127.0.0.1", "::1", "localhost", "0.0.0.0") or
+            flow.dst_ip in ("127.0.0.1", "::1", "localhost", "0.0.0.0") or
+            flow.src_ip.startswith("127.") or
+            flow.dst_ip.startswith("127.")
         )
-        if is_portscan_detected and predicted_label == "BENIGN":
-            predicted_label = "PortScan"
-            confidence = max(confidence, 0.96)
-            anomaly_score = max(anomaly_score, 0.88)
+
+        if not is_loopback:
+            now_ts = flow.last_time if flow.last_time > 0 else time.time()
+            pair_key = (flow.src_ip, flow.dst_ip)
+            q = self._scan_tracker[pair_key]
+            while q and (now_ts - q[0]["time"]) > 15.0:
+                q.popleft()
+            q.append({
+                "time": now_ts,
+                "dst_port": flow.dst_port,
+                "syn": flow.syn_cnt,
+                "rst": flow.rst_cnt,
+                "data_pkts": flow.act_data_pkt_fwd,
+            })
+            distinct_syn_probes = {item["dst_port"] for item in q if item["syn"] > 0 and item["data_pkts"] == 0}
+            distinct_rst_probes = {item["dst_port"] for item in q if item["rst"] > 0 and item["data_pkts"] == 0}
+
+            # A real port scan sends probes across multiple ports without transmitting application payload data
+            is_portscan_detected = (
+                len(distinct_syn_probes) >= 6 or
+                (len(distinct_syn_probes) >= 4 and len(distinct_rst_probes) >= 2) or
+                (predicted_label == "PortScan")
+            )
+            if is_portscan_detected and predicted_label == "BENIGN":
+                predicted_label = "PortScan"
+                confidence = max(confidence, 0.96)
+                anomaly_score = max(anomaly_score, 0.88)
 
         is_threat = (predicted_label != "BENIGN") or (anomaly_score >= 0.70)
         if is_threat:
