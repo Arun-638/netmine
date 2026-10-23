@@ -8,10 +8,8 @@ import { Link } from "react-router-dom";
 import Topbar from "../components/layout/Topbar";
 import ProtocolChart from "../charts/ProtocolChart";
 import ProtocolBarChart from "../charts/ProtocolBarChart";
-import { getApiUrl } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 import type { ProtocolStat } from "../types";
-
-const API = getApiUrl();
 
 function formatBytes(bytes: number): string {
   if (!bytes || isNaN(bytes)) return "0 B";
@@ -28,6 +26,8 @@ const PALETTE = [
 ];
 
 export default function Protocols() {
+  const { settings } = useSettings();
+  const API = settings.apiUrl;
   const [protocols, setProtocols] = useState<ProtocolStat[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 

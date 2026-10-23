@@ -6,9 +6,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Monitor, AlertTriangle, Trash2, RefreshCw, Radio, ShieldAlert } from "lucide-react";
 import Topbar from "../components/layout/Topbar";
 import { Link } from "react-router-dom";
-import { getApiUrl } from "../services/api";
-
-const API = getApiUrl();
+import { useSettings } from "../context/SettingsContext";
 
 interface LiveDevice {
   id: string;
@@ -36,6 +34,8 @@ function formatBytes(bytes: number): string {
 }
 
 export default function Devices() {
+  const { settings } = useSettings();
+  const API = settings.apiUrl;
   const [devices, setDevices] = useState<LiveDevice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [clearing, setClearing] = useState<boolean>(false);

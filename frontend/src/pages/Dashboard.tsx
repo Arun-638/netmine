@@ -12,7 +12,7 @@ import {
 import MetricCard from "../components/ui/MetricCard";
 import TrafficChart from "../charts/TrafficChart";
 import ProtocolChart from "../charts/ProtocolChart";
-import { getApiUrl } from "../services/api";
+import { useSettings } from "../context/SettingsContext";
 import type { MetricCardData, Anomaly, TrafficFlow, ProtocolStat, TrafficTrendPoint } from "../types";
 
 // Map metric card ids to icons + colors
@@ -71,7 +71,8 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [bottomTab, setBottomTab] = useState<"flows" | "anomalies">("flows");
 
-  const api = getApiUrl();
+  const { settings } = useSettings();
+  const api = settings.apiUrl;
 
   const fetchDashboardData = async () => {
     try {
