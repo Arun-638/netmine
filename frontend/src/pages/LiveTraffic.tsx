@@ -119,7 +119,7 @@ export default function LiveTraffic() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [API]);
 
   // Poll status & flows continuously
   useEffect(() => {
@@ -162,7 +162,7 @@ export default function LiveTraffic() {
       clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [API]);
 
   const handleStartCapture = async () => {
     setIsStarting(true);

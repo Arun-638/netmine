@@ -30,12 +30,14 @@ async def get_dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
 
     val_bytes, unit_bytes = fmt_bytes(status["bytes_captured"])
     live_devices = engine.get_live_devices()
+    from app.database.models import DeviceDB
+    total_active_devices = max(len(live_devices), db.query(DeviceDB).count())
 
     metrics = [
         DashboardMetric(id="total-packets",  title="Total Packets",    value=f"{status['packets_captured']:,}",   unit="pkts"),
         DashboardMetric(id="total-bytes",    title="Total Bytes",      value=val_bytes,                           unit=unit_bytes),
         DashboardMetric(id="packets-sec",    title="Packets/s",        value=str(status["packets_per_sec"]),       unit="pps"),
-        DashboardMetric(id="active-devices", title="Live Devices",     value=str(len(live_devices)),              unit="hosts"),
+        DashboardMetric(id="active-devices", title="Live Devices",     value=str(total_active_devices),           unit="hosts"),
         DashboardMetric(id="anomalies",      title="Threats Detected", value=str(status["attacks_detected"]),     unit="alerts"),
         DashboardMetric(id="net-health",     title="ML Models",        value="Active" if status["models_active"] else "Offline", unit=""),
     ]
