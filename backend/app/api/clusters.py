@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — /api/clusters  (Phase 7 updated)
 #
 # Reads REAL DBSCAN results from data/processed/dbscan_results.json
@@ -8,17 +8,9 @@ from pathlib import Path
 from fastapi import APIRouter
 from app.schemas import ClusterList, Cluster
 from app.services.mock_data import DEMO_CLUSTERS
+from data_mining.dbscan_clustering import load_dbscan_results
 
 router = APIRouter(prefix="/api/clusters", tags=["Data Mining"])
-
-DBSCAN_JSON = Path(__file__).parent.parent.parent.parent / "data" / "processed" / "dbscan_results.json"
-
-
-def load_real_dbscan() -> dict | None:
-    if DBSCAN_JSON.exists():
-        with open(DBSCAN_JSON, encoding="utf-8") as f:
-            return json.load(f)
-    return None
 
 
 @router.get("", response_model=ClusterList, summary="DBSCAN cluster results")
@@ -28,7 +20,7 @@ async def get_clusters() -> ClusterList:
     - If Phase 7 has run: returns REAL measured clusters from CICIDS2017.
     - cluster.id == -1 means noise (potential anomaly/scan).
     """
-    data = load_real_dbscan()
+    data = load_dbscan_results()
     if not data:
         noise_count = sum(1 for c in DEMO_CLUSTERS if c.id == -1)
         total_flows = sum(c.size for c in DEMO_CLUSTERS)
@@ -66,7 +58,7 @@ async def get_clusters() -> ClusterList:
 
 @router.get("/scatter", summary="DBSCAN 2D PCA scatter points for visualization")
 async def get_scatter_points() -> dict:
-    data = load_real_dbscan()
+    data = load_dbscan_results()
     if not data:
         return {"status": "not_trained", "points": []}
     return {

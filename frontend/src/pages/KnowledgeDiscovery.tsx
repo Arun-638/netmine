@@ -39,6 +39,7 @@ export default function KnowledgeDiscovery() {
 
   // Real backend data states
   const [clusters, setClusters] = useState<Cluster[]>([]);
+  const [scatterPoints, setScatterPoints] = useState<any[]>([]);
   const [rules, setRules] = useState<AssociationRule[]>([]);
   const [isRealClusters, setIsRealClusters] = useState(true);
   const [isRealRules, setIsRealRules] = useState(true);
@@ -68,6 +69,16 @@ export default function KnowledgeDiscovery() {
       })
       .catch(() => {});
 
+    // Fetch real DBSCAN 2D PCA scatter points
+    fetch(`${API}/api/clusters/scatter`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.points && d.points.length > 0) {
+          setScatterPoints(d.points);
+        }
+      })
+      .catch(() => {});
+
     // Fetch real Apriori rules
     fetch(`${API}/api/rules`)
       .then(r => r.json())
@@ -78,7 +89,7 @@ export default function KnowledgeDiscovery() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [API]);
 
   const filteredRules = rules.filter(r =>
     r.support >= minSupport &&
@@ -119,7 +130,7 @@ export default function KnowledgeDiscovery() {
             {/* Cluster scatter plot */}
             <div className="card" style={{ marginBottom: 20 }}>
               <div className="card-header">
-                <span className="card-title">Cluster Scatter Plot (Packets vs Bytes)</span>
+                <span className="card-title">Cluster Scatter Plot (2D PCA Projection · Flow Behavior)</span>
                 <div style={{ display: "flex", gap: "8px" }}>
                   <span className="badge badge-medium" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     eps: {settings.dbscanEps.toFixed(1)}
@@ -137,7 +148,7 @@ export default function KnowledgeDiscovery() {
                 Red points indicate flows DBSCAN isolated as geometric noise (unusual probes and port sweeps).
               </p>
               <div style={{ height: 340 }}>
-                <ClusterChart clusters={clusters} />
+                <ClusterChart clusters={clusters} scatterPoints={scatterPoints} />
               </div>
             </div>
 

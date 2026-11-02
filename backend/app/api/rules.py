@@ -1,4 +1,4 @@
-﻿# =========================================================
+# =========================================================
 # NetMine AI — /api/rules  (Phase 7 updated)
 #
 # Reads REAL Apriori association rules from
@@ -9,17 +9,9 @@ from pathlib import Path
 from fastapi import APIRouter, Query
 from app.schemas import AssociationRuleList, AssociationRule
 from app.services.mock_data import DEMO_RULES
+from data_mining.apriori_rules import load_association_rules
 
 router = APIRouter(prefix="/api/rules", tags=["Data Mining"])
-
-RULES_JSON = Path(__file__).parent.parent.parent.parent / "data" / "processed" / "association_rules.json"
-
-
-def load_real_rules() -> dict | None:
-    if RULES_JSON.exists():
-        with open(RULES_JSON, encoding="utf-8") as f:
-            return json.load(f)
-    return None
 
 
 @router.get("", response_model=AssociationRuleList, summary="Association rule mining results")
@@ -33,7 +25,7 @@ async def get_rules(
     - If Phase 7 has run: returns REAL measured rules mined from CICIDS2017.
     - Supports dynamic client-side / query threshold filtering.
     """
-    data = load_real_rules()
+    data = load_association_rules()
     if not data:
         rules = [
             r for r in DEMO_RULES
