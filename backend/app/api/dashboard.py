@@ -40,12 +40,9 @@ async def get_dashboard(db: Session = Depends(get_db)) -> DashboardResponse:
         DashboardMetric(id="net-health",     title="ML Models",        value="Active" if status["models_active"] else "Offline", unit=""),
     ]
 
-    # Protocol distribution from live flows, DB fallback
+    # Protocol distribution from live flows (no stale DB fallback)
     live_proto = engine.get_live_protocol_stats()
-    if live_proto:
-        proto_stats = [ProtocolStat(**p) for p in live_proto]
-    else:
-        proto_stats = db_service.get_protocol_stats(db) or []
+    proto_stats = [ProtocolStat(**p) for p in live_proto] if live_proto else []
 
     # Traffic trend — rolling throughput history points for smooth line rendering
     history = engine.get_throughput_history(limit=30)

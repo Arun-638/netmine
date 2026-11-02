@@ -95,13 +95,15 @@ export default function Dashboard() {
             }))
           );
         }
-        if (d.protocol_distribution && Array.isArray(d.protocol_distribution)) {
+        if (d.protocol_distribution && Array.isArray(d.protocol_distribution) && d.protocol_distribution.length > 0) {
           setProtocols(d.protocol_distribution.map((p: any) => ({
             protocol: p.protocol,
             packets: p.packets ?? p.count ?? 0,
             bytes: p.bytes ?? 0,
             percentage: p.percentage ?? 0,
           })));
+        } else {
+          setProtocols([]);
         }
         setDataSource(d.data_source ?? "IDLE");
         setIsLive(d.data_source === "LIVE_CAPTURE" || d.data_source === "RECENT_CACHE");

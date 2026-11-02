@@ -58,18 +58,10 @@ async def get_flows(
 
 
 @router.get("/statistics", summary="Protocol statistics from live capture")
-async def get_statistics(db: Session = Depends(get_db)) -> list:
-    """Protocol packet/byte counts computed from live engine recent_flows, with DB fallback."""
+async def get_statistics() -> list:
+    """Protocol packet/byte counts computed from live engine recent_flows."""
     live_stats = engine.get_live_protocol_stats()
-    if live_stats:
-        return live_stats
-
-    # DB fallback
-    stats = db_service.get_protocol_stats(db)
-    return [
-        {"protocol": s.protocol, "packets": s.packets, "bytes": s.bytes, "percentage": s.percentage}
-        for s in stats
-    ]
+    return live_stats if live_stats else []
 
 
 @router.get("/trend", summary="Live throughput trend (rolling 30 data points)")
