@@ -61,6 +61,7 @@ class LiveCaptureEngine:
         self.recent_anomalies = collections.deque(maxlen=200)
         self.throughput_history = collections.deque(maxlen=60)
         self._scan_tracker = collections.defaultdict(lambda: collections.deque(maxlen=150))
+        self._active_scanners: dict[tuple[str, str], float] = {}  # (src_ip, dst_ip) -> expiry_timestamp
         self.lock = threading.Lock()
 
         # Live device tracking & hardware mapping
@@ -287,6 +288,7 @@ class LiveCaptureEngine:
             "-e", "tcp.window_size_value",
             "-e", "eth.src",
             "-e", "eth.dst",
+            "-e", "tcp.len",
         ]
 
         try:
@@ -338,6 +340,16 @@ class LiveCaptureEngine:
                 if eth_dst and self._is_valid_device_ip(dst_ip) and not eth_dst.startswith("ff:ff:ff") and not eth_dst.startswith("01:00:5e"):
                     self._ip_mac_map[dst_ip] = eth_dst
 
+                # TCP application data payload length
+                tcp_len = None
+                if len(parts) > 15 and parts[15]:
+                    try:
+                        tcp_len = int(parts[15].split(",")[0].strip())
+                    except ValueError:
+                        tcp_len = 0
+
+                payload_len = tcp_len if tcp_len is not None else (0 if proto == "TCP" else max(0, pkt_len - 28))
+
                 pkt = {
                     "time": epoch,
                     "src_ip": src_ip,
@@ -346,6 +358,7 @@ class LiveCaptureEngine:
                     "src_port": sport,
                     "dst_port": dport,
                     "len": pkt_len,
+                    "payload_len": payload_len,
                     "flags": flags,
                     "window": win,
                 }
@@ -414,9 +427,8 @@ class LiveCaptureEngine:
         # An individual TCP SYN probe in isolation looks identical to
         # the start of a benign handshake to a static per-flow classifier.
         # But an IP scanning multiple distinct ports within a short window
-        # is the canonical signature of a real-world PortScan (Nmap, Zenmap, TCP sweeps).
-        # We exclude loopback traffic (127.0.0.1 / ::1) and only count true SYN/RST probes
-        # with zero application payload data.
+        # is the canonical signature of a real-world PortScan (Nmap, Zenmap, mobile TCP sweeps).
+        # We track destination ports probed per (src_ip, dst_ip) pair within a 20-second sliding window.
         is_loopback = (
             flow.src_ip in ("127.0.0.1", "::1", "localhost", "0.0.0.0") or
             flow.dst_ip in ("127.0.0.1", "::1", "localhost", "0.0.0.0") or
@@ -424,32 +436,45 @@ class LiveCaptureEngine:
             flow.dst_ip.startswith("127.")
         )
 
+        distinct_probed_ports = set()
         if not is_loopback:
             now_ts = flow.last_time if flow.last_time > 0 else time.time()
             pair_key = (flow.src_ip, flow.dst_ip)
+            is_active_scanner = (now_ts < self._active_scanners.get(pair_key, 0))
+
             q = self._scan_tracker[pair_key]
-            while q and (now_ts - q[0]["time"]) > 15.0:
+            while q and (now_ts - q[0]["time"]) > 20.0:
                 q.popleft()
             q.append({
                 "time": now_ts,
                 "dst_port": flow.dst_port,
                 "syn": flow.syn_cnt,
                 "rst": flow.rst_cnt,
-                "data_pkts": flow.act_data_pkt_fwd,
+                "act_data": flow.act_data_pkt_fwd,
             })
-            distinct_syn_probes = {item["dst_port"] for item in q if item["syn"] > 0 and item["data_pkts"] == 0}
-            distinct_rst_probes = {item["dst_port"] for item in q if item["rst"] > 0 and item["data_pkts"] == 0}
+            # A reconnaissance probe transmits minimal or zero application payload
+            distinct_probed_ports = {item["dst_port"] for item in q if item["act_data"] <= 1}
 
-            # A real port scan sends probes across multiple ports without transmitting application payload data
+            # A port scan probes 4 or more distinct ports within 20 seconds, or matches PortScan ML signature
             is_portscan_detected = (
-                len(distinct_syn_probes) >= 6 or
-                (len(distinct_syn_probes) >= 4 and len(distinct_rst_probes) >= 2) or
+                len(distinct_probed_ports) >= 4 or
+                is_active_scanner or
                 (predicted_label == "PortScan")
             )
-            if is_portscan_detected and predicted_label == "BENIGN":
+            if is_portscan_detected:
+                # Mark scanner as active for the next 25 seconds
+                self._active_scanners[pair_key] = now_ts + 25.0
                 predicted_label = "PortScan"
-                confidence = max(confidence, 0.96)
-                anomaly_score = max(anomaly_score, 0.88)
+                confidence = max(confidence, 0.98)
+                anomaly_score = max(anomaly_score, 0.94)
+
+                # Retroactively upgrade any previous probes from this sweep in recent_flows
+                with self.lock:
+                    for rf in self.recent_flows:
+                        if rf["src_ip"] == flow.src_ip and rf["dst_ip"] == flow.dst_ip and rf["label"] != "PortScan":
+                            rf["label"] = "PortScan"
+                            rf["confidence"] = 0.98
+                            rf["anomaly_score"] = 0.94
 
         # ── Standard LAN control and discovery protocols are not cyber attacks ──
         is_lan_control = (
@@ -475,12 +500,21 @@ class LiveCaptureEngine:
 
             tot_b = sum(flow.fwd_pkt_lens) + sum(flow.bwd_pkt_lens)
             tot_p = len(flow.fwd_pkt_lens) + len(flow.bwd_pkt_lens)
-            anom_desc = (
-                f"Live wire {predicted_label} threat detected from {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port} "
-                f"({flow.protocol}, {tot_b:,} bytes, {tot_p} pkts)."
-                if predicted_label != "BENIGN" else
-                f"Isolation Forest volume outlier (score: {anomaly_score:.2f}) on {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port}."
-            )
+            if predicted_label == "PortScan":
+                num_ports = len(distinct_probed_ports) if distinct_probed_ports else 1
+                anom_desc = (
+                    f"Live PortScan sweep detected from {flow.src_ip} -> {flow.dst_ip} "
+                    f"probing {num_ports} distinct ports (latest: port {flow.dst_port}/{flow.protocol})."
+                )
+            elif predicted_label != "BENIGN":
+                anom_desc = (
+                    f"Live wire {predicted_label} threat detected from {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port} "
+                    f"({flow.protocol}, {tot_b:,} bytes, {tot_p} pkts)."
+                )
+            else:
+                anom_desc = (
+                    f"Isolation Forest volume outlier (score: {anomaly_score:.2f}) on {flow.src_ip} -> {flow.dst_ip}:{flow.dst_port}."
+                )
 
             anom_record = {
                 "id": f"anom-live-{self.attack_count}",
@@ -541,7 +575,7 @@ class LiveCaptureEngine:
                 dev = self._live_devices[ip]
                 dev["bytes"] += b
                 dev["packets"] += p
-                dev["protocols"].add(proto)
+                dev["protocols"].add(flow.protocol)
                 dev["last_seen"] = max(dev["last_seen"], flow.last_time)
 
             # Mark as suspicious only for verified external threats (never the user's own machine)
@@ -601,6 +635,7 @@ class LiveCaptureEngine:
         with self.lock:
             self.recent_anomalies.clear()
             self._scan_tracker.clear()
+            self._active_scanners.clear()
 
     def clear_flows(self):
         with self.lock:
@@ -608,6 +643,7 @@ class LiveCaptureEngine:
             self.recent_anomalies.clear()
             self.throughput_history.clear()
             self._scan_tracker.clear()
+            self._active_scanners.clear()
             self._live_devices.clear()
             self._ip_mac_map.clear()
             self.total_flows = 0
